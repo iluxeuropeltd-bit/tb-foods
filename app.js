@@ -2,7 +2,7 @@
 'use strict';
 
 const CFG = window.TB_CONFIG || {};
-const VERSION = '1.0.1';
+const VERSION = '1.0.2';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -669,6 +669,7 @@ async function saveShop() {
 
 /* ---------------- more / settings ---------------- */
 function joinLink() { return location.origin + location.pathname.replace(/index\.html$/, '') + '?join=' + encodeURIComponent(S.code); }
+function voiceLink() { return CFG.supabaseUrl.replace(/\/+$/, '') + '/functions/v1/voice?code=' + encodeURIComponent(S.code) + '&say='; }
 function joinMessage() { return `Join our T&B Foods kitchen. Open this link in Safari, then tap Share and Add to Home Screen:\n${joinLink()}`; }
 async function copyText(t) {
   try { await navigator.clipboard.writeText(t); return true; } catch {}
@@ -691,18 +692,18 @@ function renderMore() {
   </div>
 
   <details class="card" id="siri"><summary>🎙️ Siri setup (add or remove by voice)</summary>
-    ${remote ? `<p class="small muted">Do this once on each iPhone. It takes about 3 minutes.</p>
-    <ol class="steps small">
-      <li>Open the <b>Shortcuts</b> app, tap <b>＋</b>, then tap the name at the top and call it <b>Freezer</b>. That's what you'll say to Siri.</li>
-      <li>Tap <b>Add Action</b>, search <b>Ask for Input</b>, add it. Set the prompt to <b>What's changed?</b> (type: Text).</li>
-      <li>Add <b>Get Contents of URL</b>. Tap the URL and paste:<div class="copyrow"><code>${esc(rpc)}</code><button data-act="copy" data-copy="${esc(rpc)}">Copy</button></div></li>
-      <li>Tap the <b>›</b> to expand it. Set <b>Method</b> to <b>POST</b>.</li>
-      <li>Under <b>Headers</b>, tap <b>Add new header</b>. Key: <b>apikey</b>, Value: paste<div class="copyrow"><code>${esc(CFG.supabaseKey)}</code><button data-act="copy" data-copy="${esc(CFG.supabaseKey)}">Copy</button></div></li>
-      <li>Set <b>Request Body</b> to <b>JSON</b>. Add a <b>Text</b> field with key <b>cmd</b> and, as the value, tap and pick the variable <b>Provided Input</b>.</li>
-      <li>Add another <b>Text</b> field with key <b>code</b> and value:<div class="copyrow"><code>${esc(S.code)}</code><button data-act="copy" data-copy="${esc(S.code)}">Copy</button></div></li>
-      <li>Add the action <b>Speak Text</b> (it uses <b>Contents of URL</b> automatically). Tap <b>Done</b>.</li>
+    ${remote ? `<p class="small muted">Do this once on each iPhone. 3 actions, about 2 minutes. First tap <b>Copy</b> below.</p>
+    <div class="copyrow"><code>${esc(voiceLink())}</code><button data-act="copy" data-copy="${esc(voiceLink())}">Copy</button></div>
+    <ol class="steps small" style="margin-top:12px">
+      <li>Open the <b>Shortcuts</b> app → <b>＋</b> (top right).</li>
+      <li>Tap <b>Add Action</b> (or the search bar at the bottom), type <b>Dictate</b> and tap <b>Dictate Text</b>.</li>
+      <li>Search <b>Get Contents of URL</b> and tap it. Tap the blue <b>URL</b> word inside it, press and hold, and tap <b>Paste</b>. The link ends with <b>say=</b>.</li>
+      <li>With the cursor still at the very end of the link, tap <b>Dictated Text</b> in the grey bar just above the keyboard. Tap <b>Done</b> on the keyboard.</li>
+      <li>Search <b>Speak Text</b> and tap it. It speaks the answer back.</li>
+      <li>Tap the name at the top (<i>Dictate Text</i>) → <b>Rename</b> → type <b>Freezer</b> → <b>Done</b>.</li>
     </ol>
-    <p class="small"><b>Use it:</b> say <i>"Hey Siri, Freezer"</i>, wait for "What's changed?", then say:</p>
+    <p class="small muted">Leave everything else as it is. No method, headers or body to change.</p>
+    <p class="small"><b>Use it:</b> say <i>"Hey Siri, Freezer"</i>, then when it's listening say:</p>
     <div class="small"><span class="say-ex">Add 4 portions of chilli to the Beko</span> <span class="say-ex">Freeze 6 chicken fillets in the Beko</span> <span class="say-ex">Add 2 bags of peas to the freezer</span> <span class="say-ex">Milk to the fridge</span> <span class="say-ex">We ate 2 chilli</span> <span class="say-ex">Took out a lasagne</span> <span class="say-ex">Used up all the peas</span> <span class="say-ex">What's in the Beko?</span> <span class="say-ex">What needs eating soon?</span></div>
     <p class="small muted">"Freeze" or "frozen" marks it as frozen today. No place said means the Beko. Removing always takes the oldest batch first.</p>` : `<p class="small muted">Siri needs the shared database. Once it's set up, the exact steps appear here with copy buttons.</p>`}
     <label class="field">Try a phrase</label>

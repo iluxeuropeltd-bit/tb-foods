@@ -14,12 +14,12 @@ App address: https://iluxeuropeltd-bit.github.io/tb-foods/
 2. On her phone, tap the link so it opens in **Safari** (not inside WhatsApp; use "Open in Safari" if needed).
 3. Tap **Share** → **Add to Home Screen** → **Add**. It opens already joined. If it ever asks, paste the code from More → Our household.
 
-## Siri (each phone, about 3 minutes)
-Full step-by-step with copy buttons is in the app: More → **Siri setup**.
-Summary: Shortcuts app → new shortcut called **Freezer** → actions:
-1. **Ask for Input** (Text, prompt "What's changed?")
-2. **Get Contents of URL** → `https://dtkmhddfsbqhwsgtfrqa.supabase.co/rest/v1/rpc/tb_voice`, Method **POST**, Header `apikey` = the publishable key, Request Body **JSON**: `cmd` = Provided Input, `code` = your household code
-3. **Speak Text** (Contents of URL)
+## Siri (each phone, about 2 minutes)
+In the app: More → **Siri setup**, tap **Copy** to copy your personal Siri link, then in the Shortcuts app:
+1. **＋** → Add Action → **Dictate Text**
+2. **Get Contents of URL** → tap URL → Paste → with the cursor at the end, tap **Dictated Text** above the keyboard
+3. **Speak Text**
+4. Rename the shortcut **Freezer**
 
 Say "Hey Siri, Freezer", then for example:
 - "Add 4 portions of chilli to the Beko"
