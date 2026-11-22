@@ -2,7 +2,7 @@
 'use strict';
 
 const CFG = window.TB_CONFIG || {};
-const VERSION = '1.0.0';
+const VERSION = '1.0.1';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -668,7 +668,12 @@ async function saveShop() {
 }
 
 /* ---------------- more / settings ---------------- */
-function joinLink() { const u = new URL(location.href); u.search = '?join=' + encodeURIComponent(S.code); u.hash = ''; return u.toString(); }
+function joinLink() { return location.origin + location.pathname.replace(/index\.html$/, '') + '?join=' + encodeURIComponent(S.code); }
+function joinMessage() { return `Join our T&B Foods kitchen. Open this link in Safari, then tap Share and Add to Home Screen:\n${joinLink()}`; }
+async function copyText(t) {
+  try { await navigator.clipboard.writeText(t); return true; } catch {}
+  try { const a = document.createElement('textarea'); a.value = t; a.setAttribute('readonly', ''); a.style.position = 'fixed'; a.style.opacity = '0'; document.body.appendChild(a); a.select(); a.setSelectionRange(0, t.length); const ok = document.execCommand('copy'); a.remove(); return ok; } catch { return false; }
+}
 function renderMore() {
   const v = $('#view-more');
   const keep = { open: $$('details', v).map((d) => d.open), out: $('#voice-out')?.textContent || '', test: $('#voice-test')?.value || '' };
@@ -679,7 +684,10 @@ function renderMore() {
     <b>Our household</b>
     <p class="small muted" style="margin:4px 0 10px">${remote ? 'Both phones use this code to share one live list.' : 'Running on this phone only. Add the shared database to sync both phones (see setup guide).'}</p>
     <div class="code" id="hh-code">${esc(S.code)}</div>
-    <div class="row" style="margin-top:10px"><button class="btn ghost grow" data-act="share-join">Send to the other phone</button><button class="btn ghost" data-act="copy" data-copy="${esc(S.code)}">Copy</button></div>
+    <label class="field">Link for the other phone</label>
+    <div class="copyrow" style="margin-top:0"><code>${esc(joinLink())}</code><button data-act="copy" data-copy="${esc(joinLink())}">Copy link</button></div>
+    <a class="btn block" style="margin-top:10px;background:#25d366;text-decoration:none" href="https://wa.me/?text=${encodeURIComponent(joinMessage())}" target="_blank" rel="noopener">Send by WhatsApp</a>
+    <div class="row" style="margin-top:8px"><button class="btn ghost grow" data-act="share-join">Other ways to send</button><button class="btn ghost" data-act="copy" data-copy="${esc(S.code)}">Copy code</button></div>
   </div>
 
   <details class="card" id="siri"><summary>🎙️ Siri setup (add or remove by voice)</summary>
@@ -1007,11 +1015,14 @@ document.addEventListener('click', async (e) => {
     }
 
     // more
-    case 'copy': try { await navigator.clipboard.writeText(b.dataset.copy); toast('Copied'); } catch { toast('Press and hold to copy'); } return;
+    case 'copy': toast((await copyText(b.dataset.copy)) ? 'Copied' : 'Press and hold the text to copy it'); return;
     case 'share-join': {
       const url = joinLink();
-      const text = `Join our T&B Foods kitchen: open this link in Safari, then tap Share › Add to Home Screen.\n${url}`;
-      if (navigator.share) { try { await navigator.share({ text }); } catch {} } else { try { await navigator.clipboard.writeText(url); toast('Link copied'); } catch {} }
+      if (navigator.share) {
+        try { await navigator.share({ title: 'T&B Foods', text: 'Join our T&B Foods kitchen. Open in Safari, then Share › Add to Home Screen.', url }); return; }
+        catch (er) { if (er && er.name === 'AbortError') return; }
+      }
+      toast((await copyText(url)) ? 'Link copied. Paste it into a message.' : 'Press and hold the link above to copy it');
       return;
     }
     case 'voice-test': {

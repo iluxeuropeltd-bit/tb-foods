@@ -10,7 +10,7 @@ App address: https://iluxeuropeltd-bit.github.io/tb-foods/
 5. Optional: More → **Load our current freezer list** to add the 22 items you already have.
 
 ## Wife's phone
-1. On Bryan's phone: More → **Send to the other phone** → send by WhatsApp/iMessage.
+1. On Bryan's phone: More → **Send by WhatsApp** (or **Copy link** and paste it into any message).
 2. On her phone, tap the link so it opens in **Safari** (not inside WhatsApp; use "Open in Safari" if needed).
 3. Tap **Share** → **Add to Home Screen** → **Add**. It opens already joined. If it ever asks, paste the code from More → Our household.
 
