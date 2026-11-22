@@ -692,13 +692,14 @@ function renderMore() {
   </div>
 
   <details class="card" id="siri"><summary>🎙️ Siri setup (add or remove by voice)</summary>
-    ${remote ? `<p class="small muted">Do this once on each iPhone. 3 actions, about 2 minutes. First tap <b>Copy</b> below.</p>
+    ${remote ? `<p class="small muted">Do this once on each iPhone. 4 actions, about 2 minutes. First tap <b>Copy</b> below.</p>
     <div class="copyrow"><code>${esc(voiceLink())}</code><button data-act="copy" data-copy="${esc(voiceLink())}">Copy</button></div>
     <ol class="steps small" style="margin-top:12px">
       <li>Open the <b>Shortcuts</b> app → <b>＋</b> (top right).</li>
       <li>Tap <b>Add Action</b> (or the search bar at the bottom), type <b>Dictate</b> and tap <b>Dictate Text</b>.</li>
+      <li>Search <b>encode</b> and tap <b>URL Encode</b>. It shows <i>Encode Dictated Text</i>. Leave it as it is.</li>
       <li>Search <b>Get Contents of URL</b> and tap it. Tap the blue <b>URL</b> word inside it, press and hold, and tap <b>Paste</b>. The link ends with <b>say=</b>.</li>
-      <li>With the cursor still at the very end of the link, tap <b>Dictated Text</b> in the grey bar just above the keyboard. Tap <b>Done</b> on the keyboard.</li>
+      <li>With the cursor still at the very end of the link, tap <b>URL Encoded Text</b> in the grey bar just above the keyboard. Tap <b>Done</b> on the keyboard.</li>
       <li>Search <b>Speak Text</b> and tap it. It speaks the answer back.</li>
       <li>Tap the name at the top (<i>Dictate Text</i>) → <b>Rename</b> → type <b>Freezer</b> → <b>Done</b>.</li>
     </ol>

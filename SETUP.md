@@ -17,9 +17,10 @@ App address: https://iluxeuropeltd-bit.github.io/tb-foods/
 ## Siri (each phone, about 2 minutes)
 In the app: More → **Siri setup**, tap **Copy** to copy your personal Siri link, then in the Shortcuts app:
 1. **＋** → Add Action → **Dictate Text**
-2. **Get Contents of URL** → tap URL → Paste → with the cursor at the end, tap **Dictated Text** above the keyboard
-3. **Speak Text**
-4. Rename the shortcut **Freezer**
+2. **URL Encode** (leave as "Encode Dictated Text")
+3. **Get Contents of URL** → tap URL → Paste → with the cursor at the end, tap **URL Encoded Text** above the keyboard
+4. **Speak Text**
+5. Rename the shortcut **Freezer**. Don't add headers or change the method.
 
 Say "Hey Siri, Freezer", then for example:
 - "Add 4 portions of chilli to the Beko"
