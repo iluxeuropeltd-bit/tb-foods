@@ -17,7 +17,7 @@ create table if not exists public.items (
   name text not null,
   qty numeric not null default 1,
   unit text,
-  location text not null check (location in ('fridge','freezer','beko')),
+  location text not null check (location in ('fridge','freezer','beko','pantry','utilities')),
   spot text,
   barcode text,
   image text,
@@ -31,6 +31,8 @@ create table if not exists public.items (
 alter table public.items add column if not exists bought_on date not null default current_date;
 alter table public.items add column if not exists frozen_on date;
 create index if not exists items_hh on public.items (household) where gone_at is null;
+alter table public.items drop constraint if exists items_location_check;
+alter table public.items add constraint items_location_check check (location in ('fridge','freezer','beko','pantry','utilities'));
 
 create table if not exists public.usage (
   id uuid primary key default gen_random_uuid(),
@@ -98,7 +100,7 @@ declare
   w text;
   nm text;
   numwords jsonb := '{"a":1,"an":1,"one":1,"won":1,"two":2,"to":2,"too":2,"three":3,"four":4,"for":4,"five":5,"six":6,"seven":7,"eight":8,"nine":9,"ten":10,"eleven":11,"twelve":12,"thirteen":13,"fourteen":14,"fifteen":15,"sixteen":16,"seventeen":17,"eighteen":18,"nineteen":19,"twenty":20,"thirty":30,"forty":40,"fifty":50,"half":0.5,"couple":2,"dozen":12,"all":-1,"every":-1}';
-  units jsonb := '{"portion":"portion","portions":"portion","bag":"bag","bags":"bag","pack":"pack","packs":"pack","packet":"pack","packets":"pack","tub":"tub","tubs":"tub","box":"box","boxes":"box","tin":"tin","tins":"tin","can":"tin","cans":"tin","bottle":"bottle","bottles":"bottle","tray":"tray","trays":"tray","piece":"piece","pieces":"piece","slice":"slice","slices":"slice","loaf":"loaf","loaves":"loaf","lb":"lb","lbs":"lb","pound":"lb","pounds":"lb","kg":"kg","kilo":"kg","kilos":"kg","g":"g","grams":"g","gram":"g","litre":"litre","litres":"litre","liter":"litre","liters":"litre","container":"container","containers":"container","carton":"carton","cartons":"carton","jar":"jar","jars":"jar","punnet":"punnet","punnets":"punnet","bunch":"bunch","bunches":"bunch","bowl":"bowl","bowls":"bowl","meal":"portion","meals":"portion","serving":"portion","servings":"portion","tray-bake":"tray"}';
+  units jsonb := '{"portion":"portion","portions":"portion","bag":"bag","bags":"bag","pack":"pack","packs":"pack","packet":"pack","packets":"pack","tub":"tub","tubs":"tub","box":"box","boxes":"box","tin":"tin","tins":"tin","can":"tin","cans":"tin","bottle":"bottle","bottles":"bottle","tray":"tray","trays":"tray","piece":"piece","pieces":"piece","slice":"slice","slices":"slice","loaf":"loaf","loaves":"loaf","lb":"lb","lbs":"lb","pound":"lb","pounds":"lb","kg":"kg","kilo":"kg","kilos":"kg","g":"g","grams":"g","gram":"g","litre":"litre","litres":"litre","liter":"litre","liters":"litre","container":"container","containers":"container","carton":"carton","cartons":"carton","jar":"jar","jars":"jar","punnet":"punnet","punnets":"punnet","bunch":"bunch","bunches":"bunch","bowl":"bowl","bowls":"bowl","meal":"portion","meals":"portion","serving":"portion","servings":"portion","roll":"roll","rolls":"roll","can":"tin","tray-bake":"tray"}';
 begin
   t := regexp_replace(t, '[’`]', '''', 'g');
   t := regexp_replace(t, '\.(?![0-9])', ' ', 'g');
@@ -111,8 +113,14 @@ begin
     if t ~ '\m(eat soon|eating soon|need(s)? eating|use up|oldest|old|expir|rotate)' then loc := 'soon'; end if;
   end if;
 
-  -- location (chest freezer first, then American freezer, then fridge)
-  if t ~ '\m(beko|becko|beco|becco|bekko|beeko|beko''s|bekos|becko''s|bico|deco|chest)\M' then
+  -- location (utilities and pantry first, then chest freezer, American freezer, fridge)
+  if t ~ '\m(utilities|utility|under the sink)\M' then
+    loc := coalesce(loc, 'utilities');
+    t := regexp_replace(t, '\m((in|into|to|from|out of|on|at) )?((the|my|our) )?(utilities|utility|under the sink)( (room|press|cupboard|cupboards))?\M', ' ', 'g');
+  elsif t ~ '\m(pantry|cupboard|cupboards|press|larder)\M' then
+    loc := coalesce(loc, 'pantry');
+    t := regexp_replace(t, '\m((in|into|to|from|out of|on|at) )?((the|my|our) )?(food )?(pantry|cupboard|cupboards|press|larder)\M', ' ', 'g');
+  elsif t ~ '\m(beko|becko|beco|becco|bekko|beeko|beko''s|bekos|becko''s|bico|deco|chest)\M' then
     loc := coalesce(loc, 'beko');
     t := regexp_replace(t, '\m((in|into|to|from|out of|on|at) )?((the|my|our) )?(beko|becko|beco|becco|bekko|beeko|beko''s|bekos|becko''s|bico|deco|chest)( (chest|freezer|chest freezer))*\M', ' ', 'g');
   elsif t ~ '\m(fridge freezer|freezer|american freezer|big freezer|freezer drawer|freezer drawers)\M' then
@@ -173,7 +181,16 @@ begin
 end $$;
 
 create or replace function public.tb_loc_name(loc text) returns text language sql immutable as $$
-  select case loc when 'beko' then 'Beko' when 'freezer' then 'American freezer' when 'fridge' then 'fridge' else loc end
+  select case loc when 'beko' then 'Beko' when 'freezer' then 'American freezer' when 'fridge' then 'fridge'
+                  when 'pantry' then 'pantry' when 'utilities' then 'utility cupboard' else loc end
+$$;
+
+-- Where to put something when no place was said
+create or replace function public.tb_guess_loc(nm text, u text) returns text language sql immutable as $$
+  select case
+    when nm ~* '(bleach|detergent|washing (up|powder|liquid|tablets|pods)|cleaner|cleaning|spray|toilet|loo roll|kitchen roll|bin bag|bin liner|sponge|polish|soap|dishwasher|fabric|softener|wipes|tin foil|cling film|baking paper|hand wash|shampoo|toothpaste|batter(y|ies)|light ?bulb|fairy|domestos|flash|zoflora|dettol|febreze)' then 'utilities'
+    when u in ('tin','jar','roll') or nm ~* '(beans|pasta|spaghetti|penne|rice|cereal|porridge|oats|flour|sugar|tea bags|teabags|coffee|oil|vinegar|tinned|tin of|crisps|biscuit|noodle|stock cube|gravy|herbs|spice|salt|pepper|ketchup|mayo|jam|honey|peanut butter|nuts|crackers|lentils|chickpeas)' then 'pantry'
+    else 'beko' end
 $$;
 
 create or replace function public.tb_qty_text(q numeric, u text, nm text) returns text language sql immutable as $$
@@ -222,7 +239,8 @@ begin
         into lst
         from (select * from items where household = hh and gone_at is null and qty > 0
                 and ((location = 'fridge' and coalesce(use_by, bought_on + 3) <= current_date + 1)
-                  or (location <> 'fridge' and coalesce(frozen_on, bought_on) <= current_date - 56))
+                  or (location = 'pantry' and use_by <= current_date + 7)
+                  or (location in ('freezer','beko') and coalesce(frozen_on, bought_on) <= current_date - 56))
               order by coalesce(frozen_on, bought_on) limit 8) s;
       return coalesce('Eat these soon: ' || lst || '.', 'Nothing needs eating soon. Everything is within its rotation.');
     end if;
@@ -243,7 +261,7 @@ begin
   end if;
 
   if p->>'action' = 'add' then
-    loc := coalesce(loc, 'beko');
+    loc := coalesce(loc, public.tb_guess_loc(nm, u));
     nm := upper(left(nm, 1)) || substr(nm, 2);
     select id into existing from items
       where household = hh and gone_at is null and location = loc and lower(name) = lower(nm)
@@ -254,7 +272,7 @@ begin
       update items set qty = qty + q, updated_at = now() where id = existing;
     else
       insert into items (household, name, qty, unit, location, bought_on, frozen_on)
-      values (hh, nm, q, u, loc, current_date, case when frz then current_date end);
+      values (hh, nm, q, u, loc, current_date, case when frz and loc in ('freezer','beko') then current_date end);
     end if;
     select sum(qty) into total from items where household = hh and gone_at is null and location = loc and lower(name) = lower(nm);
     perform public.tb_ping(hh);
