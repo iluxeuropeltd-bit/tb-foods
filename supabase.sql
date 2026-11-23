@@ -99,16 +99,31 @@ declare
   n int;
   w text;
   nm text;
+  isq boolean := false;
+  has_add boolean := false;
+  t0 text;
   numwords jsonb := '{"a":1,"an":1,"one":1,"won":1,"two":2,"to":2,"too":2,"three":3,"four":4,"for":4,"five":5,"six":6,"seven":7,"eight":8,"nine":9,"ten":10,"eleven":11,"twelve":12,"thirteen":13,"fourteen":14,"fifteen":15,"sixteen":16,"seventeen":17,"eighteen":18,"nineteen":19,"twenty":20,"thirty":30,"forty":40,"fifty":50,"half":0.5,"couple":2,"dozen":12,"all":-1,"every":-1}';
   units jsonb := '{"portion":"portion","portions":"portion","bag":"bag","bags":"bag","pack":"pack","packs":"pack","packet":"pack","packets":"pack","tub":"tub","tubs":"tub","box":"box","boxes":"box","tin":"tin","tins":"tin","can":"tin","cans":"tin","bottle":"bottle","bottles":"bottle","tray":"tray","trays":"tray","piece":"piece","pieces":"piece","slice":"slice","slices":"slice","loaf":"loaf","loaves":"loaf","lb":"lb","lbs":"lb","pound":"lb","pounds":"lb","kg":"kg","kilo":"kg","kilos":"kg","g":"g","grams":"g","gram":"g","litre":"litre","litres":"litre","liter":"litre","liters":"litre","container":"container","containers":"container","carton":"carton","cartons":"carton","jar":"jar","jars":"jar","punnet":"punnet","punnets":"punnet","bunch":"bunch","bunches":"bunch","bowl":"bowl","bowls":"bowl","meal":"portion","meals":"portion","serving":"portion","servings":"portion","roll":"roll","rolls":"roll","can":"tin","tray-bake":"tray"}';
 begin
+  isq := cmd ~ '\?';
   t := regexp_replace(t, '[’`]', '''', 'g');
   t := regexp_replace(t, '\.(?![0-9])', ' ', 'g');
   t := regexp_replace(t, '[^a-z0-9.'' -]', ' ', 'g');
   t := regexp_replace(t, '\s+', ' ', 'g');
 
+  -- wake words and filler ("hey siri", "siri", "um", "can you", "please" ...)
+  t := regexp_replace(t, '\m(hey|hi|ok|okay|o k) (siri|seri|sirie|siri''s|cyril)\M', ' ', 'g');
+  t := regexp_replace(t, '\m(siri|seri|sirie)\M', ' ', 'g');
+  t := regexp_replace(t, '\s+', ' ', 'g');
+  loop
+    t0 := t;
+    t := regexp_replace(t, '^ (hey|hi|ok|okay|um|umm|uh|er|erm|so|right|and|please|can you|could you|would you|will you|go ahead and|i want to|i''d like to|i would like to|we need to|i need to|need to|t and b foods|t b foods)\M', ' ');
+    t := regexp_replace(t, '\s+', ' ', 'g');
+    exit when t = t0;
+  end loop;
+
   -- questions
-  if t ~ '^ (what|whats|what''s|list|how much|how many|show|tell me)\M' then
+  if isq or t ~ '^ (what|whats|what''s|which|list|how much|how many|show|tell me|do we have|do i have|do we|have we|have i|is there|are there|is any|are any|any|anything|check|where)\M' then
     act := 'list';
     if t ~ '\m(eat soon|eating soon|need(s)? eating|use up|oldest|old|expir|rotate)' then loc := 'soon'; end if;
   end if;
@@ -132,8 +147,16 @@ begin
   end if;
 
   if act = 'list' then
-    return jsonb_build_object('action', act, 'loc', loc);
+    if loc = 'soon' then return jsonb_build_object('action', 'list', 'loc', loc); end if;
+    -- a question about one food ("how many chilli do we have", "do we have any peas")
+    nm := regexp_replace(t, '\m(what''s|whats|what|which|is|are|was|in|there|any|anything|do|does|we|i|you|have|has|got|left|how|many|much|of|the|our|my|show|me|list|tell|check|stock|food|foods|items|item|things|stuff|currently|still|some|at|moment|now|where|it|they|kept|portions|portion|bags|bag|tins|tin|packs|pack|bottles|bottle|units)\M', ' ', 'g');
+    nm := trim(regexp_replace(nm, '\s+', ' ', 'g'));
+    if nm <> '' then return jsonb_build_object('action', 'count', 'name', nm, 'loc', loc); end if;
+    return jsonb_build_object('action', 'list', 'loc', loc);
   end if;
+
+  -- an add needs a clear add word (or freeze); remove words are checked below
+  has_add := t ~ '^ ((we|i) )?((just|have|ve|''ve) )*(add|added|adding|put|putting|plus|bought|buy|got|log|store|stored|new|stick|stuck|pop|popped|place|placed)\M';
 
   -- freezing it today?
   if t ~ '\m(freeze|freezing|frozen|froze)\M' then
@@ -146,7 +169,7 @@ begin
     act := 'remove';
     t := regexp_replace(t, '\m(we |i )?(have |had |just )*(ate|eaten|eat|removed|remove|delete|deleted|used up|use up|used|took out|take out|taken out|took|take|taken|finished|finish|minus|defrosted|defrosting|defrost|thawed|thawing|thaw|gone)( up| out| off)?\M', ' ', 'g');
   end if;
-  t := regexp_replace(t, '^ (please )?(add|added|put|plus|bought|got|log|store|stored|new)( in| away)?\M', ' ', 'g');
+  t := regexp_replace(t, '^ ((we|i) )?((just|have|ve|''ve) )*(please )?(add|added|adding|put|putting|plus|bought|buy|got|log|store|stored|new|stick|stuck|pop|popped|place|placed)( in| away)?\M', ' ', 'g');
   t := regexp_replace(t, '\m(please|thanks|thank you)\M', ' ', 'g');
   t := regexp_replace(t, '\s+', ' ', 'g');
 
@@ -177,6 +200,13 @@ begin
   nm := regexp_replace(nm, '( (in|into|to|from|out|of|the|please|and|today|now|it|them))+$', '');
   nm := trim(nm);
   if act = 'add' and qty = -1 then qty := 1; end if;
+  if nm ~ '\m(siri|hey|what|whats|what''s|how|is there|do we)\M' then
+    return jsonb_build_object('action', 'unsure');
+  end if;
+  -- no add word: only accept it when a number AND a place were both said ("2 bags of peas to the freezer")
+  if act = 'add' and not has_add and not frz and not (qty is not null and loc is not null) then
+    return jsonb_build_object('action', 'unsure', 'name', nm);
+  end if;
   return jsonb_build_object('action', act, 'qty', coalesce(qty, 1), 'unit', unit, 'name', nm, 'loc', loc, 'freeze', frz);
 end $$;
 
@@ -250,6 +280,22 @@ begin
             order by coalesce(frozen_on, bought_on) limit 12) s;
     return coalesce('In the ' || coalesce(public.tb_loc_name(loc), 'kitchen') || ', oldest first: ' || lst || '.',
                     'The ' || coalesce(public.tb_loc_name(loc), 'kitchen') || ' is empty.');
+  end if;
+
+  if p->>'action' = 'unsure' then
+    return 'Sorry, I wasn''t sure what you meant, so I didn''t change anything. Start with add, ate, or what''s in. For example: add 2 bags of peas to the Beko.';
+  end if;
+
+  if p->>'action' = 'count' then
+    nm := p->>'name';
+    select string_agg(public.tb_qty_text(s.q, s.unit, s.nm) || ' in the ' || public.tb_loc_name(s.location), ', ')
+      into lst
+      from (select i.location, max(i.name) nm, i.unit, sum(i.qty) q from items i
+              where i.household = hh and i.gone_at is null and i.qty > 0 and (loc is null or i.location = loc)
+                and (i.name ilike '%' || nm || '%' or nm ilike '%' || i.name || '%' or extensions.word_similarity(nm, lower(i.name)) > 0.5)
+              group by i.location, lower(i.name), i.unit order by i.location limit 6) s;
+    return coalesce('You have ' || lst || '.',
+                    'You have no ' || nm || case when loc is null then '' else ' in the ' || public.tb_loc_name(loc) end || '.');
   end if;
 
   nm := p->>'name';

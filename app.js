@@ -2,7 +2,7 @@
 'use strict';
 
 const CFG = window.TB_CONFIG || {};
-const VERSION = '1.0.3';
+const VERSION = '1.0.4';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -117,7 +117,10 @@ function parseCommand(cmd) {
   let t = ' ' + String(cmd || '').toLowerCase() + ' ';
   let action = 'add', loc = null, freeze = false, qty = null, unit = null;
   t = t.replace(/[’`]/g, "'").replace(/\.(?![0-9])/g, ' ').replace(/[^a-z0-9.' -]/g, ' ').replace(/\s+/g, ' ');
-  if (/^ (what|whats|what's|list|how much|how many|show|tell me)\b/.test(t)) return { action: 'list', loc: /\b(eat soon|eating soon|needs? eating|use up|oldest|old|expir|rotate)/.test(t) ? 'soon' : /\b(utilities|utility)\b/.test(t) ? 'utilities' : /\b(pantry|cupboard|press|larder)\b/.test(t) ? 'pantry' : (new RegExp(`\\b(${BEKO})\\b`).test(t) ? 'beko' : /\bfreezer\b/.test(t) ? 'freezer' : /\bfridge\b/.test(t) ? 'fridge' : null) };
+  const isQ = /\?/.test(String(cmd || ''));
+  t = t.replace(/\b(hey|hi|ok|okay|o k) (siri|seri|sirie|siri's|cyril)\b/g, ' ').replace(/\b(siri|seri|sirie)\b/g, ' ').replace(/\s+/g, ' ');
+  for (let t0 = ''; t0 !== t;) { t0 = t; t = t.replace(/^ (hey|hi|ok|okay|um|umm|uh|er|erm|so|right|and|please|can you|could you|would you|will you|go ahead and|i want to|i'd like to|i would like to|we need to|i need to|need to)\b/, ' ').replace(/\s+/g, ' '); }
+  if (isQ || /^ (what|whats|what's|which|list|how much|how many|show|tell me|do we have|do i have|do we|have we|have i|is there|are there|any|anything|check|where)\b/.test(t)) return { action: 'list', loc: /\b(eat soon|eating soon|needs? eating|use up|oldest|old|expir|rotate)/.test(t) ? 'soon' : /\b(utilities|utility)\b/.test(t) ? 'utilities' : /\b(pantry|cupboard|press|larder)\b/.test(t) ? 'pantry' : (new RegExp(`\\b(${BEKO})\\b`).test(t) ? 'beko' : /\bfreezer\b/.test(t) ? 'freezer' : /\bfridge\b/.test(t) ? 'fridge' : null) };
   if (/\b(utilities|utility|under the sink)\b/.test(t)) {
     loc = 'utilities';
     t = t.replace(/\b((in|into|to|from|out of|on|at) )?((the|my|our) )?(utilities|utility|under the sink)( (room|press|cupboard|cupboards))?\b/g, ' ');
