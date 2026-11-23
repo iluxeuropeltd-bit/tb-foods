@@ -2,7 +2,7 @@
 'use strict';
 
 const CFG = window.TB_CONFIG || {};
-const VERSION = '1.0.6';
+const VERSION = '1.0.7';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -24,7 +24,7 @@ const LOCS = {
 const LOC_ORDER = ['fridge', 'freezer', 'beko', 'pantry', 'utilities'];
 const isFoodLoc = (l) => l !== 'utilities';
 const UTIL_RE = /bleach|detergent|washing (up|powder|liquid|tablets|pods)|cleaner|cleaning|spray|toilet|loo roll|kitchen roll|bin bag|bin liner|sponge|polish|soap|dishwasher|fabric|softener|wipes|tin foil|cling film|baking paper|hand wash|shampoo|toothpaste|batter(y|ies)|light ?bulb|fairy|domestos|flash|zoflora|dettol|febreze/i;
-const PANTRY_RE = /beans|pasta|spaghetti|penne|rice|cereal|porridge|oats|flour|sugar|tea bags|teabags|coffee|oil|vinegar|tinned|tin of|crisps|biscuit|noodle|stock cube|gravy|herbs|spice|salt|pepper|ketchup|mayo|jam|honey|peanut butter|nuts|crackers|lentils|chickpeas/i;
+const PANTRY_RE = /tomato(es)? (puree|tins?)|chopped tomatoes|passata|tuna|pesto|weetabix|cornflakes|krispies|granola|muesli|digestives|chocolate|sauce|olive oil|stock|noodles|couscous|custard|jelly|marmalade|nutella|mustard|wraps|tortillas|breadcrumbs|squash|cordial|wine|beer|beans|pasta|spaghetti|penne|rice|cereal|porridge|oats|flour|sugar|tea bags|teabags|coffee|oil|vinegar|tinned|tin of|crisps|biscuit|noodle|stock cube|gravy|herbs|spice|salt|pepper|ketchup|mayo|jam|honey|peanut butter|nuts|crackers|lentils|chickpeas/i;
 const guessLoc = (name, unit) => UTIL_RE.test(name) ? 'utilities' : (['tin', 'jar', 'roll'].includes(unit) || PANTRY_RE.test(name)) ? 'pantry' : null;
 const isFrozenLoc = (l) => l === 'freezer' || l === 'beko';
 const WEIGHT_UNITS = ['lb', 'kg', 'g', 'litre'];

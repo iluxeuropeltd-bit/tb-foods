@@ -234,10 +234,16 @@ create or replace function public.tb_loc_name(loc text) returns text language sq
                   when 'pantry' then 'pantry' when 'utilities' then 'utility cupboard' else loc end
 $$;
 
+-- everyday dry and tinned food: Siri knows these and puts them in the pantry when no place is said
+create or replace function public.tb_pantry_foods() returns text[] language sql immutable as $$
+  select array['baked beans','beans','tinned tomatoes','chopped tomatoes','tomato puree','passata','tinned tuna','tuna','tinned sweetcorn','tinned soup','packet soup','cup a soup','chickpeas','kidney beans','lentils','coconut milk','tinned fruit','peaches','pineapple','rice pudding','custard','uht milk','long life milk','pasta','spaghetti','penne','fusilli','lasagne sheets','noodles','egg noodles','instant noodles','pot noodle','rice','basmati rice','microwave rice','couscous','flour','plain flour','self raising flour','cornflour','sugar','brown sugar','icing sugar','baking powder','bread soda','yeast','custard powder','jelly','cereal','cornflakes','weetabix','rice krispies','granola','muesli','porridge','porridge oats','oats','cereal bars','tea bags','coffee','instant coffee','ground coffee','coffee pods','hot chocolate','drinking chocolate','biscuits','digestives','crackers','cream crackers','rice cakes','crisps','popcorn','nuts','peanuts','raisins','chocolate','sweets','jam','marmalade','honey','peanut butter','nutella','ketchup','brown sauce','mayonnaise','mayo','mustard','salad cream','soy sauce','sweet chilli sauce','bbq sauce','pasta sauce','curry sauce','sweet and sour sauce','pesto','vinegar','balsamic vinegar','olive oil','vegetable oil','sunflower oil','stock cubes','oxo cubes','gravy granules','bisto','salt','pepper','herbs','mixed herbs','spices','curry powder','paprika','cumin','chilli flakes','garlic','garlic granules','wraps','tortillas','breadcrumbs','bottled water','water','fizzy drinks','minerals','squash','cordial','juice','orange juice','wine','beer']
+$$;
+
 -- Where to put something when no place was said
 create or replace function public.tb_guess_loc(nm text, u text) returns text language sql immutable as $$
   select case
     when nm ~* '(bleach|detergent|washing (up|powder|liquid|tablets|pods)|cleaner|cleaning|spray|toilet|loo roll|kitchen roll|bin bag|bin liner|sponge|polish|soap|dishwasher|fabric|softener|wipes|tin foil|cling film|baking paper|hand wash|shampoo|toothpaste|batter(y|ies)|light ?bulb|fairy|domestos|flash|zoflora|dettol|febreze)' then 'utilities'
+    when lower(nm) = any(public.tb_pantry_foods()) then 'pantry'
     when u in ('tin','jar','roll') or nm ~* '(beans|pasta|spaghetti|penne|rice|cereal|porridge|oats|flour|sugar|tea bags|teabags|coffee|oil|vinegar|tinned|tin of|crisps|biscuit|noodle|stock cube|gravy|herbs|spice|salt|pepper|ketchup|mayo|jam|honey|peanut butter|nuts|crackers|lentils|chickpeas)' then 'pantry'
     else 'beko' end
 $$;
@@ -285,6 +291,7 @@ begin
   insert into foods (household, name)
   select hh, n from (
     select unnest(public.tb_default_foods()) n
+    union select unnest(public.tb_pantry_foods())
     union select lower(name) from items where household = hh and gone_at is null and name !~* '\m(siri|hey|what|whats|something|anything|stuff)\M'
     union select lower(name) from products where household = hh
   ) x where n <> ''
