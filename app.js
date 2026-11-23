@@ -390,7 +390,6 @@ function findMatches(name, loc) {
     if (m === n) return 4;
     if (m.includes(n) || n.includes(m)) return 3;
     if (editDistance(m, n) <= Math.max(1, Math.floor(Math.min(m.length, n.length) / 5))) return 2;
-    const a = n.split(' '), b = m.split(' ');
     return 0;
   };
   const scored = pool.map((i) => [score(i), i]).filter(([s]) => s >= 2); // a shared word alone ("chicken") isn't enough
