@@ -70,11 +70,19 @@ create table if not exists public.settings (
   updated_at timestamptz not null default now()
 );
 
+-- Foods Siri knows (voice can only add these; edit in the app under More)
+create table if not exists public.foods (
+  household text not null default public.tb_hh(),
+  name text not null,
+  added_at timestamptz not null default now(),
+  primary key (household, name)
+);
+
 -- Row level security: each household code only sees its own rows.
 do $$
 declare t text;
 begin
-  foreach t in array array['items','usage','products','shops','settings'] loop
+  foreach t in array array['items','usage','products','shops','settings','foods'] loop
     execute format('alter table public.%I enable row level security', t);
     execute format('drop policy if exists tb_household on public.%I', t);
     execute format($p$create policy tb_household on public.%I for all to anon, authenticated
@@ -249,6 +257,51 @@ begin
 exception when others then null;
 end $$;
 
+create or replace function public.tb_default_foods() returns text[] language sql immutable as $$
+  select array[
+    -- meat & fish
+    'chicken','chicken fillets','chicken breasts','chicken thighs','chicken wings','chicken drumsticks','whole chicken','chicken kievs','chicken nuggets','chicken goujons',
+    'turkey','turkey burgers','turkey mince','beef','mince','beef mince','stewing beef','steak','fillet steak','sirloin steak','burgers','beef burgers',
+    'sausages','rashers','bacon','ham','gammon','pork','pork chops','pork steaks','pork loin','lamb','lamb chops','leg of lamb','lamb mince','roast beef','meatballs',
+    'fish','fish fingers','salmon','cod','haddock','fish cakes','prawns',
+    -- veg & sides
+    'peas','sweetcorn','mixed veg','carrots','broccoli','cauliflower','green beans','brussels sprouts','spinach','peppers','onions','mushrooms',
+    'potatoes','chips','oven chips','roast potatoes','potato waffles','wedges','hash browns','mash',
+    -- meals & other freezer food
+    'chilli','bolognese','lasagne','curry','stew','soup','shepherd''s pie','cottage pie','casserole','pizza','garlic bread','bread','baguettes','naan bread',
+    'ice cream','raspberries','blueberries','strawberries','berries','milk','butter','cheese','eggs','yoghurt',
+    -- pantry & utilities
+    'beans','pasta','rice','cereal','porridge','tea bags','coffee','bleach','washing up liquid','toilet rolls','kitchen roll','dishwasher tablets','washing powder'
+  ]
+$$;
+
+-- first use: fill the list with the defaults plus everything already in stock or scanned
+create or replace function public.tb_seed_foods(code text default null) returns void
+language plpgsql security definer set search_path = public as $$
+declare hh text := coalesce(nullif(code, ''), public.tb_hh());
+begin
+  if hh is null or length(hh) < 10 then return; end if;
+  if exists (select 1 from foods where household = hh) then return; end if;
+  insert into foods (household, name)
+  select hh, n from (
+    select unnest(public.tb_default_foods()) n
+    union select lower(name) from items where household = hh and gone_at is null and name !~* '\m(siri|hey|what|whats|something|anything|stuff)\M'
+    union select lower(name) from products where household = hh
+  ) x where n <> ''
+  on conflict do nothing;
+end $$;
+
+-- best match from the household's food list, or null
+create or replace function public.tb_known_food(hh text, nm text) returns text
+language sql stable security definer set search_path = public, extensions as $$
+  select f.name from foods f
+   where f.household = hh
+     and (f.name = lower(nm) or f.name = lower(nm) || 's' or f.name || 's' = lower(nm) or f.name = regexp_replace(lower(nm), 'es$', '')
+          or extensions.similarity(f.name, lower(nm)) > 0.55)
+   order by (f.name = lower(nm)) desc, (f.name = lower(nm) || 's' or f.name || 's' = lower(nm)) desc, extensions.similarity(f.name, lower(nm)) desc
+   limit 1
+$$;
+
 -- Siri and the app call this: select tb_voice('add 4 portions of chilli to the beko', 'YOUR-CODE')
 create or replace function public.tb_voice(cmd text, code text default null) returns text
 language plpgsql security definer set search_path = public, extensions as $$
@@ -318,6 +371,12 @@ begin
   end if;
 
   if p->>'action' = 'add' then
+    perform public.tb_seed_foods(hh);
+    target := public.tb_known_food(hh, nm);
+    if target is null then
+      return 'I don''t know ' || nm || ' yet, so I didn''t add anything. Add it once in the app, or add it to Foods Siri knows under More, and I''ll know it next time.';
+    end if;
+    nm := target;  -- always use the name from the list, so batches line up
     loc := coalesce(loc, public.tb_guess_loc(nm, u));
     nm := upper(left(nm, 1)) || substr(nm, 2);
     select id into existing from items
@@ -376,6 +435,7 @@ end $$;
 
 grant execute on function public.tb_voice(text, text) to anon, authenticated;
 grant execute on function public.tb_parse(text) to anon, authenticated;
+grant execute on function public.tb_seed_foods(text) to anon, authenticated;
 grant execute on function public.tb_hh() to anon, authenticated;
 
 notify pgrst, 'reload schema';

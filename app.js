@@ -2,7 +2,7 @@
 'use strict';
 
 const CFG = window.TB_CONFIG || {};
-const VERSION = '1.0.5';
+const VERSION = '1.0.6';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -313,6 +313,7 @@ async function addItem(data, { silent } = {}) {
       undo = async () => { S.items = S.items.filter((i) => i.id !== row.id); await S.store.update('items', row.id, { qty: 0, gone_at: new Date().toISOString() }); render(); };
     }
     S.lastLoc = row.location; LS.set('tb.lastLoc', row.location);
+    learnFood(row.name);
     if (row.barcode) {
       const p = { barcode: row.barcode, name: row.name, image: row.image, unit: row.unit, updated_at: new Date().toISOString() };
       S.products[row.barcode] = { ...p, location: row.location, freeze: !!row.frozen_on };
@@ -740,12 +741,19 @@ function renderMore() {
     </ol>
     <p class="small muted">Leave everything else as it is. No method, headers or body to change.</p>
     <p class="small"><b>Use it:</b> say <i>"Hey Siri, Freezer"</i>, then when it's listening say:</p>
-    <div class="small"><span class="say-ex">Add 4 portions of chilli to the Beko</span> <span class="say-ex">Freeze 6 chicken fillets in the Beko</span> <span class="say-ex">Add 2 bags of peas to the freezer</span> <span class="say-ex">Milk to the fridge</span> <span class="say-ex">We ate 2 chilli</span> <span class="say-ex">Took out a lasagne</span> <span class="say-ex">Used up all the peas</span> <span class="say-ex">What's in the Beko?</span> <span class="say-ex">What needs eating soon?</span></div>
-    <p class="small muted">"Freeze" or "frozen" marks it as frozen today. No place said means the Beko. Removing always takes the oldest batch first.</p>` : `<p class="small muted">Siri needs the shared database. Once it's set up, the exact steps appear here with copy buttons.</p>`}
+    <div class="small"><span class="say-ex">Add 4 portions of chilli to the Beko</span> <span class="say-ex">Freeze 6 chicken fillets in the Beko</span> <span class="say-ex">Add 2 bags of peas to the freezer</span> <span class="say-ex">Add milk to the fridge</span> <span class="say-ex">How many chilli do we have?</span> <span class="say-ex">We ate 2 chilli</span> <span class="say-ex">Took out a lasagne</span> <span class="say-ex">Used up all the peas</span> <span class="say-ex">What's in the Beko?</span> <span class="say-ex">What needs eating soon?</span></div>
+    <p class="small muted">Say <b>add</b>, <b>put</b>, <b>bought</b> or <b>freeze</b> to add. Siri only adds foods on your list below. "Freeze" marks it as frozen today. "The freezer" on its own means both freezers when asking or taking out. Removing always takes the oldest batch first.</p>` : `<p class="small muted">Siri needs the shared database. Once it's set up, the exact steps appear here with copy buttons.</p>`}
     <label class="field">Try a phrase</label>
     <div class="row"><input type="text" id="voice-test" placeholder="add 2 lasagne to the beko"><button class="btn" data-act="voice-test">Run</button></div>
     <div class="small" id="voice-out" style="margin-top:8px"></div>
   </details>
+
+  ${remote ? `<details class="card" id="foods-card"><summary>📝 Foods Siri knows (${S.foods ? S.foods.length : '…'})</summary>
+    <p class="small muted">Siri only adds foods on this list, so a misheard word never ends up in your stock. Anything you add in the app joins the list by itself.</p>
+    <div class="row"><input type="text" id="food-new" placeholder="e.g. chicken curry" autocomplete="off"><button class="btn" data-act="food-add">Add</button></div>
+    <input type="search" id="food-find" placeholder="Search the list" style="margin-top:8px" value="${esc(S.foodFind || '')}">
+    <div class="chips" id="food-list" style="margin-top:10px">${S.foods ? foodChips() : '<span class="small muted">Loading…</span>'}</div>
+  </details>` : ''}
 
   <details class="card"><summary>🔄 Rotation & 8-week supply</summary>
     <label class="field">Target supply in the freezers (weeks)</label>
@@ -772,6 +780,32 @@ function renderMore() {
   $$('details', v).forEach((d, i) => { if (keep.open[i]) d.open = true; });
   if (keep.out) $('#voice-out').textContent = keep.out;
   if (keep.test) $('#voice-test').value = keep.test;
+  if (remote && !S.foods && !S.foodsLoading) loadFoods();
+}
+const foodChips = () => {
+  const q = (S.foodFind || '').toLowerCase().trim();
+  const list = (S.foods || []).filter((n) => !q || n.includes(q));
+  return list.length ? list.map((n) => `<span class="chip food-chip">${esc(titleCase(n))}<button data-act="food-del" data-name="${esc(n)}" aria-label="Remove ${esc(n)}">×</button></span>`).join('') : '<span class="small muted">Nothing matches.</span>';
+};
+async function loadFoods() {
+  S.foodsLoading = true;
+  try {
+    await S.store.req('POST', '/rpc/tb_seed_foods', { code: S.code });
+    const rows = await S.store.req('GET', '/foods?select=name&order=name.asc&limit=2000');
+    S.foods = rows.map((r) => r.name);
+  } catch { S.foods = null; } finally { S.foodsLoading = false; }
+  paintFoods();
+}
+function paintFoods() {
+  const l = $('#food-list'), sm = $('#foods-card summary');
+  if (l) l.innerHTML = S.foods ? foodChips() : '<span class="small muted">Couldn\'t load the list. Pull down to refresh.</span>';
+  if (sm) sm.textContent = `📝 Foods Siri knows (${S.foods ? S.foods.length : '…'})`;
+}
+async function learnFood(name) {
+  const n = String(name || '').toLowerCase().trim();
+  if (!n || S.store?.kind !== 'remote' || /\b(siri|something|anything|stuff)\b/.test(n)) return;
+  if (S.foods && S.foods.includes(n)) return;
+  try { await S.store.req('POST', '/foods?on_conflict=household,name', { name: n, household: S.code }, 'resolution=ignore-duplicates,return=minimal'); if (S.foods) { S.foods.push(n); S.foods.sort(); } } catch {}
 }
 
 /* ---------------- sheets ---------------- */
@@ -1062,6 +1096,17 @@ document.addEventListener('click', async (e) => {
       toast((await copyText(url)) ? 'Link copied. Paste it into a message.' : 'Press and hold the link above to copy it');
       return;
     }
+    case 'food-add': {
+      const n = $('#food-new').value.toLowerCase().replace(/\s+/g, ' ').trim(); if (!n) return;
+      if (S.foods?.includes(n)) { toast(titleCase(n) + ' is already on the list'); return; }
+      try { await S.store.req('POST', '/foods?on_conflict=household,name', { name: n, household: S.code }, 'resolution=ignore-duplicates,return=minimal'); S.foods = [...(S.foods || []), n].sort(); toast('Siri now knows ' + titleCase(n)); $('#food-new').value = ''; paintFoods(); $('#food-new')?.focus(); } catch (er) { saveFailed(er); }
+      return;
+    }
+    case 'food-del': {
+      const n = b.dataset.name;
+      try { await S.store.req('DELETE', '/foods?name=eq.' + encodeURIComponent(n)); S.foods = (S.foods || []).filter((x) => x !== n); toast('Removed ' + titleCase(n) + ' from the list', async () => { await S.store.req('POST', '/foods?on_conflict=household,name', { name: n, household: S.code }, 'resolution=ignore-duplicates,return=minimal'); S.foods = [...S.foods, n].sort(); paintFoods(); }); paintFoods(); } catch (er) { saveFailed(er); }
+      return;
+    }
     case 'voice-test': {
       const t = $('#voice-test').value.trim(); if (!t) return;
       $('#voice-out').textContent = '…';
@@ -1100,6 +1145,7 @@ document.addEventListener('click', async (e) => {
 document.addEventListener('input', (e) => {
   if (e.target.id === 'search') { S.q = e.target.value; renderStock(); }
   if (e.target.id === 'say') updateSayPreview();
+  if (e.target.id === 'food-find') { S.foodFind = e.target.value; const l = $('#food-list'); if (l) l.innerHTML = foodChips(); }
 });
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Enter') return;
@@ -1107,6 +1153,7 @@ document.addEventListener('keydown', (e) => {
   if (e.target.id === 'amt') { e.preventDefault(); $('[data-act=shop-save]').click(); }
   if (e.target.id === 'manual-code') { e.preventDefault(); $('[data-act=manual-go]').click(); }
   if (e.target.id === 'voice-test') { e.preventDefault(); $('[data-act=voice-test]').click(); }
+  if (e.target.id === 'food-new') { e.preventDefault(); $('[data-act=food-add]').click(); }
 });
 document.addEventListener('change', async (e) => {
   if (e.target.id === 'scan-photo' && e.target.files?.[0]) {

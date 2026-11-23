@@ -282,3 +282,6 @@ details[open].card summary::after { transform: rotate(90deg); }
 .ob h1 { font-size: 32px; margin: 18px 0 6px; letter-spacing: -.02em; }
 .ob p { color: var(--muted); }
 .ob .card { text-align: left; margin-top: 18px; }
+
+.food-chip { display: inline-flex; align-items: center; gap: 4px; min-height: 34px; padding: 0 4px 0 12px; font-size: 14px; }
+.food-chip button { width: 28px; height: 28px; border-radius: 99px; color: var(--muted); font-size: 18px; line-height: 1; }
