@@ -2,7 +2,7 @@
 'use strict';
 
 const CFG = window.TB_CONFIG || {};
-const VERSION = '1.0.8';
+const VERSION = '1.0.9';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -247,11 +247,15 @@ class RemoteStore {
   async live(onChange) {
     try {
       if (!window.supabase?.createClient || !crypto.subtle) return;
-      const client = window.supabase.createClient(this.url, this.key, { auth: { persistSession: false, autoRefreshToken: false } });
-      this.channel = client.channel(await this.topic(), { config: { broadcast: { self: false } } });
+      this.onChange = onChange;
+      this.client = this.client || window.supabase.createClient(this.url, this.key, { auth: { persistSession: false, autoRefreshToken: false } });
+      if (this.channel) { try { await this.client.removeChannel(this.channel); } catch {} }
+      this.channel = this.client.channel(await this.topic(), { config: { broadcast: { self: false } } });
       this.channel.on('broadcast', { event: 'changed' }, () => onChange()).subscribe();
     } catch (e) { console.warn('live sync unavailable', e); }
   }
+  // iPhone suspends the home-screen app, which silently drops the live connection: rejoin on resume
+  relive() { if (this.onChange) this.live(this.onChange); }
   ping() { try { this.channel?.send({ type: 'broadcast', event: 'changed', payload: { at: Date.now() } }); } catch {} }
 }
 
@@ -285,6 +289,7 @@ async function reload(quiet) {
     S.loaded = true;
     LS.set('tb.cache', { items: S.items, usage: S.usage, shops: S.shops, products: S.products, settings: S.settings, at: Date.now() });
     if (S.store.kind === 'local') setSync('local');
+    render(); return true;
   } catch (e) {
     console.warn(e);
     const c = LS.get('tb.cache', null);
@@ -292,7 +297,7 @@ async function reload(quiet) {
     setSync('off');
     if (!quiet) toast("Can't reach the shared list. Showing the last copy on this phone.");
   }
-  render();
+  render(); return false;
 }
 
 /* ---------------- item actions ---------------- */
@@ -1201,11 +1206,26 @@ async function start() {
   await reload();
   if (S.store.kind === 'remote') {
     S.store.live(() => reload(true));
-    setInterval(() => { if (document.visibilityState === 'visible' && $('#sheet-wrap').hidden) reload(true); }, 30000);
+    setInterval(() => { if (document.visibilityState === 'visible' && $('#sheet-wrap').hidden) reload(true); }, 15000);
   }
   if (S.loc !== 'all') renderStock();
 }
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.store?.kind === 'remote') reload(true); if (document.visibilityState === 'hidden' && S.tab === 'add') stopScanner(); });
+// Coming back to the app (home-screen icon, app switcher, unlocking): fetch fresh, and retry while the phone's network wakes up.
+let resumeAt = 0;
+async function resume() {
+  if (S.store?.kind !== 'remote' || document.visibilityState !== 'visible') return;
+  const now = Date.now(); if (now - resumeAt < 1500) return; resumeAt = now;
+  S.store.relive();
+  for (const wait of [0, 1500, 4000, 10000]) {
+    if (wait) await new Promise((r) => setTimeout(r, wait));
+    if (await reload(true)) break;
+  }
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') resume(); if (document.visibilityState === 'hidden' && S.tab === 'add') stopScanner(); });
+window.addEventListener('pageshow', () => resume());
+window.addEventListener('focus', () => resume());
+window.addEventListener('online', () => resume());
+document.addEventListener('click', (e) => { if (e.target.closest('#sync')) { setSync('busy'); reload(); } });
 
 /* ---------------- boot ---------------- */
 (function boot() {
