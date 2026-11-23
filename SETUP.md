@@ -38,7 +38,7 @@ No place said: cleaning and household things go to Utilities, tins and dry goods
 - **Scan / Add**: Adding mode or Eating mode. New barcodes are looked up on Open Food Facts; unknown ones you name once and they're remembered. "Freezing it today" toggle tracks home-frozen food.
 - **Plan**: weeks of supply vs your 8-week target, what to eat next (first in, first out), and what's running low.
 - **Spend**: enter each shop's receipt total; monthly totals, by-shop breakdown, history.
-- **Pantry** (dry & tinned food) and **Utilities** (cleaning & household) have their own tabs on Stock. Pantry items can have a best-before date and get flagged in the last week; Utilities are never flagged. Both count in "running low" on Plan but not in the 8-week freezer supply.
+- **Pantry** (dry & tinned food), **Prepper** (emergency supplies: matches, lighters, firelighters, batteries, candles, stocked-up pasta and rice…) and **Utilities** (cleaning & household) have their own tabs on Stock. Pantry items can have a best-before date and get flagged in the last week; Utilities are never flagged. Both count in "running low" on Plan but not in the 8-week freezer supply.
 - Rotation flags: frozen food "Eat soon" after 8 weeks, "Eat now" at 3 months (home frozen) or 6 months (bought frozen).
 
 Free tier note: Supabase pauses a free project after 7 days with no use at all. Daily use keeps it awake; if it ever pauses, sign in at supabase.com and click Restore.
