@@ -2,7 +2,7 @@
 'use strict';
 
 const CFG = window.TB_CONFIG || {};
-const VERSION = '1.0.10';
+const VERSION = '1.0.11';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -27,7 +27,9 @@ const isFoodLoc = (l) => l !== 'utilities' && l !== 'prepper';
 const PREPPER_RE = /\bmatch(es)?\b|lighters?\b|firelighters?|candles?|tea ?lights?|torch(es)?|head ?torch|batter(y|ies)|power ?bank|first aid|plasters|gas canisters?|camping (gas|stove)|firewood|logs\b|briquettes|coal\b|duct tape|foil blankets?|water (tablets|filter|purif)|emergency|radio\b|paraffin|rope\b/i;
 const UTIL_RE = /bleach|detergent|washing (up|powder|liquid|tablets|pods)|cleaner|cleaning|spray|toilet|loo roll|kitchen roll|bin bag|bin liner|sponge|polish|soap|dishwasher|fabric|softener|wipes|tin foil|cling film|baking paper|hand wash|shampoo|toothpaste|batter(y|ies)|light ?bulb|fairy|domestos|flash|zoflora|dettol|febreze/i;
 const PANTRY_RE = /tomato(es)? (puree|tins?)|chopped tomatoes|passata|tuna|pesto|weetabix|cornflakes|krispies|granola|muesli|digestives|chocolate|sauce|olive oil|stock|noodles|couscous|custard|jelly|marmalade|nutella|mustard|wraps|tortillas|breadcrumbs|squash|cordial|wine|beer|beans|pasta|spaghetti|penne|rice|cereal|porridge|oats|flour|sugar|tea bags|teabags|coffee|oil|vinegar|tinned|tin of|crisps|biscuit|noodle|stock cube|gravy|herbs|spice|salt|pepper|ketchup|mayo|jam|honey|peanut butter|nuts|crackers|lentils|chickpeas/i;
-const guessLoc = (name, unit) => PREPPER_RE.test(name) ? 'prepper' : UTIL_RE.test(name) ? 'utilities' : (['tin', 'jar', 'roll'].includes(unit) || PANTRY_RE.test(name)) ? 'pantry' : null;
+const FRIDGE_RE = /\bmilk\b|\bbutter\b|\bcheese\b|cheddar|mozzarella|\beggs?\b|yog|\bcream\b|creme fraiche|coleslaw|hummus|houmous|\bsalad\b|lettuce|cucumber|\bham\b|sliced|\bjuice\b|smoothie|margarine|spread|\bdips?\b/i;
+const guessLoc = (name, unit) => PREPPER_RE.test(name) ? 'prepper' : UTIL_RE.test(name) ? 'utilities' : (['tin', 'jar', 'roll', 'sachet'].includes(unit) || PANTRY_RE.test(name)) ? 'pantry'
+  : (!/ice ?cream|frozen|cheesecake/i.test(name) && FRIDGE_RE.test(name)) ? 'fridge' : null;
 const isFrozenLoc = (l) => l === 'freezer' || l === 'beko';
 const WEIGHT_UNITS = ['lb', 'kg', 'g', 'litre'];
 const STORES = ['Tesco', 'Dunnes', 'SuperValu', 'Aldi', 'Lidl', 'M&S', 'Centra', 'Butcher'];
@@ -114,7 +116,7 @@ function flagOf(it) {
 
 /* ---------------- voice / typed command parsing (mirrors tb_parse in SQL) ---------------- */
 const NUMWORDS = { a: 1, an: 1, one: 1, won: 1, two: 2, to: 2, too: 2, three: 3, four: 4, for: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50, half: 0.5, couple: 2, dozen: 12, all: -1, every: -1 };
-const UNITS = { portion: 'portion', portions: 'portion', bag: 'bag', bags: 'bag', pack: 'pack', packs: 'pack', packet: 'pack', packets: 'pack', tub: 'tub', tubs: 'tub', box: 'box', boxes: 'box', tin: 'tin', tins: 'tin', can: 'tin', cans: 'tin', bottle: 'bottle', bottles: 'bottle', tray: 'tray', trays: 'tray', piece: 'piece', pieces: 'piece', slice: 'slice', slices: 'slice', loaf: 'loaf', loaves: 'loaf', lb: 'lb', lbs: 'lb', pound: 'lb', pounds: 'lb', kg: 'kg', kilo: 'kg', kilos: 'kg', g: 'g', grams: 'g', gram: 'g', litre: 'litre', litres: 'litre', liter: 'litre', liters: 'litre', container: 'container', containers: 'container', carton: 'carton', cartons: 'carton', jar: 'jar', jars: 'jar', punnet: 'punnet', punnets: 'punnet', bunch: 'bunch', bunches: 'bunch', bowl: 'bowl', bowls: 'bowl', meal: 'portion', meals: 'portion', serving: 'portion', servings: 'portion', roll: 'roll', rolls: 'roll' };
+const UNITS = { portion: 'portion', portions: 'portion', bag: 'bag', bags: 'bag', pack: 'pack', packs: 'pack', packet: 'pack', packets: 'pack', tub: 'tub', tubs: 'tub', box: 'box', boxes: 'box', tin: 'tin', tins: 'tin', can: 'tin', cans: 'tin', bottle: 'bottle', bottles: 'bottle', tray: 'tray', trays: 'tray', piece: 'piece', pieces: 'piece', slice: 'slice', slices: 'slice', loaf: 'loaf', loaves: 'loaf', lb: 'lb', lbs: 'lb', pound: 'lb', pounds: 'lb', kg: 'kg', kilo: 'kg', kilos: 'kg', g: 'g', grams: 'g', gram: 'g', litre: 'litre', litres: 'litre', liter: 'litre', liters: 'litre', container: 'container', containers: 'container', carton: 'carton', cartons: 'carton', jar: 'jar', jars: 'jar', punnet: 'punnet', punnets: 'punnet', bunch: 'bunch', bunches: 'bunch', bowl: 'bowl', bowls: 'bowl', meal: 'portion', meals: 'portion', serving: 'portion', servings: 'portion', roll: 'roll', rolls: 'roll', block: 'block', blocks: 'block', pot: 'pot', pots: 'pot', bar: 'bar', bars: 'bar', sachet: 'sachet', sachets: 'sachet' };
 const BEKO = 'beko|becko|beco|becco|bekko|beeko|beko\'s|bekos|becko\'s|bico|deco|chest|beaker|beakers|becker|beckers|bekah|becca|beca|bekka|bacco|bekoe|bebo|vecko|veko';
 function parseCommand(cmd) {
   let t = ' ' + String(cmd || '').toLowerCase() + ' ';
@@ -124,7 +126,7 @@ function parseCommand(cmd) {
   t = t.replace(/\b(big|chest) freezer\b/g, ' beko ');
   t = t.replace(/\b(hey|hi|ok|okay|o k) (siri|seri|sirie|siri's|cyril)\b/g, ' ').replace(/\b(siri|seri|sirie)\b/g, ' ').replace(/\s+/g, ' ');
   for (let t0 = ''; t0 !== t;) { t0 = t; t = t.replace(/^ (hey|hi|ok|okay|um|umm|uh|er|erm|so|right|and|please|can you|could you|would you|will you|go ahead and|i want to|i'd like to|i would like to|we need to|i need to|need to)\b/, ' ').replace(/\s+/g, ' '); }
-  if (isQ || /^ (what|whats|what's|which|list|how much|how many|show|tell me|do we have|do i have|do we|have we|have i|is there|are there|any|anything|check|where)\b/.test(t)) return { action: 'list', loc: /\b(eat soon|eating soon|needs? eating|use up|oldest|old|expir|rotate)/.test(t) ? 'soon' : /\b(utilities|utility)\b/.test(t) ? 'utilities' : /\b(prepper|preppers|prepping|stockpile|emergency)\b/.test(t) ? 'prepper' : /\b(pantry|cupboard|press|larder)\b/.test(t) ? 'pantry' : (new RegExp(`\\b(${BEKO})\\b`).test(t) ? 'beko' : /\bfreezer\b/.test(t) ? 'freezer' : /\bfridge\b/.test(t) ? 'fridge' : null) };
+  if (isQ || /^ (what|whats|what's|which|list|how much|how many|show|tell me|do we have|do i have|do we|have we|have i|is there|are there|is any|are any|any|anything|check|where|did|does|do|was|were|are we|are you|is it|is that|is the|when|should|can i|can we|could i|could we)\b/.test(t)) return { action: 'list', loc: /\b(eat soon|eating soon|needs? eating|use up|oldest|old|expir|rotate)/.test(t) ? 'soon' : /\b(utilities|utility)\b/.test(t) ? 'utilities' : /\b(prepper|preppers|prepping|stockpile|emergency)\b/.test(t) ? 'prepper' : /\b(pantry|cupboard|press|larder)\b/.test(t) ? 'pantry' : (new RegExp(`\\b(${BEKO})\\b`).test(t) ? 'beko' : /\bfreezer\b/.test(t) ? 'freezer' : /\bfridge\b/.test(t) ? 'fridge' : null) };
   if (/\b(utilities|utility|under the sink)\b/.test(t)) {
     loc = 'utilities';
     t = t.replace(/\b((in|into|to|from|out of|on|at) )?((the|my|our) )?(utilities|utility|under the sink)( (room|press|cupboard|cupboards))?\b/g, ' ');
@@ -144,10 +146,11 @@ function parseCommand(cmd) {
     loc = 'fridge';
     t = t.replace(/\b((in|into|to|from|out of|on|at) )?((the|my|our) )?(american )?(fridge|refrigerator)( side)?\b/g, ' ');
   }
-  if (/\b(freeze|freezing|frozen|froze)\b/.test(t)) {
+  // "frozen peas" = bought frozen; "freeze", "froze", "frozen today", "I've frozen" = frozen at home today
+  if (/\b(freeze|freezing|froze)\b/.test(t) || /\bfrozen (it|them|today|now)\b/.test(t) || /\b(i|we)( have| ve|'ve| just)* frozen\b/.test(t) || /^ ((we|i) )?((just|have|'ve) )*frozen\b/.test(t)) {
     freeze = true;
     t = t.replace(/\b(i'm |i am |we're |we are |to )?(freeze|freezing|frozen|froze)( it| them| today| now)*\b/g, ' ');
-  }
+  } else t = t.replace(/\bfrozen\b/g, ' ');
   if (/\b(ate|eat|eaten|remove|removed|delete|deleted|used|use up|took|take|taken|finished|finish|minus|defrost|defrosted|defrosting|thaw|thawed|thawing|gone)\b/.test(t)) {
     action = 'remove';
     t = t.replace(/\b(we |i )?((have|had|just) )*(ate|eaten|eat|removed|remove|delete|deleted|used up|use up|used|took out|take out|taken out|took|take|taken|finished|finish|minus|defrosted|defrosting|defrost|thawed|thawing|thaw|gone)( up| out| off)?\b/g, ' ');
@@ -156,7 +159,7 @@ function parseCommand(cmd) {
   t = t.replace(/\b(please|thanks|thank you)\b/g, ' ').replace(/\s+/g, ' ');
   const w = t.trim().split(' ').filter(Boolean);
   let i = 0;
-  while (i < w.length && ['we', 'i', 'have', 'had', 'just', 'the', 'some', 'of', 'my', 'our', 'x'].includes(w[i])) i++;
+  while (i < w.length && ['we', 'i', 'have', 'had', 'just', 'the', 'some', 'of', 'my', 'our', 'x', "i've", "we've", 'ive', 'weve'].includes(w[i])) i++;
   if (i < w.length) {
     const x = w[i];
     if (/^\d+(\.\d+)?$/.test(x)) { qty = Number(x); i++; }
@@ -287,12 +290,12 @@ async function reload(quiet) {
     S.usage = d.usage; S.shops = d.shops; S.products = d.products;
     S.settings = { ...DEFAULT_SETTINGS, ...(d.settings || {}) };
     S.loaded = true;
-    LS.set('tb.cache', { items: S.items, usage: S.usage, shops: S.shops, products: S.products, settings: S.settings, at: Date.now() });
+    LS.set('tb.cache.' + S.code, { items: S.items, usage: S.usage, shops: S.shops, products: S.products, settings: S.settings, at: Date.now() });
     if (S.store.kind === 'local') setSync('local');
     render(); return true;
   } catch (e) {
     console.warn(e);
-    const c = LS.get('tb.cache', null);
+    const c = LS.get('tb.cache.' + S.code, null);
     if (c && !S.loaded) Object.assign(S, { items: c.items, usage: c.usage, shops: c.shops, products: c.products, settings: { ...DEFAULT_SETTINGS, ...c.settings } });
     setSync('off');
     if (!quiet) toast("Can't reach the shared list. Showing the last copy on this phone.");
@@ -387,10 +390,9 @@ function findMatches(name, loc) {
     if (m === n) return 4;
     if (m.includes(n) || n.includes(m)) return 3;
     if (editDistance(m, n) <= Math.max(1, Math.floor(Math.min(m.length, n.length) / 5))) return 2;
-    const a = n.split(' '), b = m.split(' ');
-    return b.some((x) => x.length > 2 && a.some((y) => y === x || (y.length > 3 && editDistance(x, y) <= 1))) ? 1 : 0;
+    return 0;
   };
-  const scored = pool.map((i) => [score(i), i]).filter(([s]) => s > 0);
+  const scored = pool.map((i) => [score(i), i]).filter(([s]) => s >= 2); // a shared word alone ("chicken") isn't enough
   if (!scored.length) return [];
   const best = Math.max(...scored.map(([s]) => s));
   const top = scored.filter(([s]) => s === best).map(([, i]) => i);
@@ -454,6 +456,7 @@ function lowStock() {
   const fu = S.usage.filter((u) => tracked(u.location) && now - new Date(u.used_at).getTime() <= win * 864e5);
   if (!fu.length) return [];
   const first = fu.reduce((m, u) => Math.min(m, new Date(u.used_at).getTime()), now);
+  if (now - first < 7 * 864e5) return []; // wait for a week of eating before suggesting what to buy
   const weeksObserved = Math.max(1, (now - first) / 864e5 / 7);
   const by = {};
   for (const u of fu) { const k = u.name.toLowerCase(); (by[k] ||= { name: u.name, loc: u.location, used: 0 }).used += Number(u.qty) || 0; }
@@ -575,7 +578,7 @@ function renderPlan() {
   if (low.length) {
     html += `<div class="list">${low.map((l) => `<div class="plain-row"><span class="thumb" style="width:36px;height:36px;font-size:20px">${emojiFor(l.name)}</span><div class="grow"><b>${esc(l.name)}</b><div class="small muted">You ${isFoodLoc(l.loc) ? 'eat' : 'use'} about ${l.perWeek < 1 ? 'one every ' + Math.round(7 / l.perWeek) + ' days' : num(+l.perWeek.toFixed(1)) + ' a week'} · ${num(l.stock)} in stock</div></div><span class="buy">Buy ${l.buy}</span></div>`).join('')}</div>
     <button class="btn ghost block" data-act="share-list" style="margin-top:10px">Share shopping list</button>`;
-  } else html += `<div class="card small muted">Once you've logged a few things eaten, this shows what to buy to keep ${st.target} weeks of each food you actually eat.</div>`;
+  } else html += `<div class="card small muted">After a week of logging what you eat, this shows what to buy to keep ${st.target} weeks of each food you actually eat.</div>`;
   v.innerHTML = html;
 }
 
@@ -620,7 +623,7 @@ function updateSayPreview() {
   const txt = ($('#say')?.value || '').trim();
   if (!txt) { el.innerHTML = ''; sayState = null; return; }
   const p = parseCommand(txt);
-  if (p.action === 'list') { el.innerHTML = `<div class="preview ok"><div class="small muted">Question</div><div class="line">Tap below to see the answer</div><button class="btn block" style="margin-top:12px" data-act="say-go">Ask</button></div>`; sayState = { p }; return; }
+  if (p.action === 'list') { el.innerHTML = `<div class="preview ok"><div class="small muted">Question</div><div class="line">Tap below to see the answer</div><button class="btn block" style="margin-top:12px" data-act="say-go">Ask</button></div>`; sayState = { p, text: txt }; return; }
   const prev = sayState?.text === txt ? sayState : null;
   const loc = prev?.loc ?? p.loc ?? (p.action === 'add' ? (guessLoc(p.name || '', p.unit) || S.lastLoc) : null);
   const freeze = prev?.freezeTouched ? prev.freeze : (p.freeze || false);
@@ -629,7 +632,7 @@ function updateSayPreview() {
     const m = p.name ? findMatches(p.name, p.loc) : [];
     el.innerHTML = `<div class="preview eat"><div class="small muted">Eating / used</div>
       <div class="line">${p.qty < 0 ? 'All' : num(p.qty)} ${esc(p.unit ? unitText(p.qty, p.unit) + ' of ' : '')}${esc(p.name || '…')}</div>
-      <div class="small" style="margin-top:4px">${m.length ? `From ${LOCS[m[0].location].long}, oldest first (${m.reduce((s, i) => s + Number(i.qty), 0)} in stock)` : p.name ? `<span style="color:var(--now)">Not found in stock</span>` : ''}</div>
+      <div class="small" style="margin-top:4px">${m.length ? `<b>${esc(m[0].name)}</b> from ${LOCS[m[0].location].long}, oldest first (${num(m.reduce((s, i) => s + Number(i.qty), 0))} in stock)` : p.name ? `<span style="color:var(--now)">Not found in stock</span>` : ''}</div>
       <button class="btn eat block" style="margin-top:12px" data-act="say-go" ${m.length ? '' : 'disabled'}>Remove</button></div>`;
   } else {
     el.innerHTML = `<div class="preview ok"><div class="small muted">Adding</div>
@@ -699,8 +702,17 @@ function renderSpend() {
   $('#amt').value = amt; if (focus) $('#amt').focus();
 }
 
+// "85,40" and "85.40" are both €85.40; "1,234.50" and "1.234,50" are both €1234.50
+function parseMoney(v) {
+  let t = String(v || '').replace(/[^0-9.,]/g, '');
+  const lc = t.lastIndexOf(','), ld = t.lastIndexOf('.');
+  const dec = Math.max(lc, ld);
+  if (dec >= 0 && t.length - dec - 1 <= 2) t = t.slice(0, dec).replace(/[.,]/g, '') + '.' + t.slice(dec + 1);
+  else t = t.replace(/[.,]/g, '');
+  return t;
+}
 async function saveShop() {
-  const raw = ($('#amt').value || '').replace(',', '.').replace(/[^0-9.]/g, '');
+  const raw = parseMoney($('#amt').value);
   const amount = Math.round(parseFloat(raw) * 100) / 100;
   if (!(amount > 0)) { toast('Enter the receipt total first.'); $('#amt').focus(); return; }
   const row = { id: uid(), shop_date: $('#shop-date').value || today(), store: SPEND.store || 'Other', amount, note: null, created_at: new Date().toISOString() };
@@ -840,7 +852,7 @@ function itemForm(d, { title, existing } = {}) {
       <div class="grow"><div class="small muted">${esc(title || '')}</div><input class="title" id="f-name" type="text" value="${esc(d.name || '')}" placeholder="What is it?" autocomplete="off"></div></div>
     <div class="row" style="margin-top:14px;align-items:flex-end">
       <div><label class="field">${existing ? 'Quantity left' : 'How many'}</label><div class="stepper"><button data-act="f-step" data-d="-1">−</button><input id="f-qty" type="number" inputmode="decimal" value="${num(d.qty || 1)}" min="0" step="any"><button data-act="f-step" data-d="1">＋</button></div></div>
-      <div class="grow"><label class="field">Unit</label><select id="f-unit">${['', 'portion', 'bag', 'pack', 'tub', 'box', 'tray', 'piece', 'loaf', 'bottle', 'tin', 'lb', 'kg', 'g'].map((u) => `<option value="${u}" ${(d.unit || '') === u ? 'selected' : ''}>${u ? unitText(2, u) : 'items'}</option>`).join('')}</select></div>
+      <div class="grow"><label class="field">Unit</label><select id="f-unit">${['', 'portion', 'bag', 'pack', 'tub', 'pot', 'box', 'tray', 'piece', 'loaf', 'bottle', 'tin', 'jar', 'carton', 'block', 'bar', 'sachet', 'lb', 'kg', 'g', 'litre'].map((u) => `<option value="${u}" ${(d.unit || '') === u ? 'selected' : ''}>${u ? unitText(2, u) : 'items'}</option>`).join('')}</select></div>
     </div>
     <label class="field">Where</label>${locChips(loc, 'f-loc')}
     ${spots.length ? `<label class="field">Shelf / drawer <span class="muted">(optional)</span></label><div class="chips">${spots.map((s) => `<button class="chip ${d.spot === s ? 'on' : ''}" data-act="f-spot" data-spot="${s}">${s}</button>`).join('')}</div>` : ''}
@@ -1044,7 +1056,7 @@ document.addEventListener('click', async (e) => {
     case 'say-go': {
       const st = sayState; if (!st) return;
       const p = st.p;
-      if (p.action === 'list') { const ans = await runLocalCommand(p); openSheet(`<h3 style="margin-top:4px">Answer</h3><div class="card">${esc(ans)}</div><div class="actions"><button class="btn full" data-act="close-sheet">OK</button></div>`); return; }
+      if (p.action === 'list') { let ans; try { ans = S.store.kind === 'remote' ? await S.store.voice(st.text || $('#say').value) : await runLocalCommand(p); } catch (er) { ans = await runLocalCommand(p); } openSheet(`<h3 style="margin-top:4px">Answer</h3><div class="card">${esc(ans)}</div><div class="actions"><button class="btn full" data-act="close-sheet">OK</button></div>`); return; }
       let ok;
       if (p.action === 'remove') { await removeByName(p.name, p.qty, p.loc, false); ok = true; }
       else ok = await addItem({ name: p.name, qty: p.qty, unit: p.unit, location: st.loc, frozen_on: isFrozenLoc(st.loc) && st.freeze ? today() : null });
@@ -1203,7 +1215,8 @@ async function start() {
   S.store = remoteConfigured() ? new RemoteStore(CFG.supabaseUrl, CFG.supabaseKey, S.code) : new LocalStore();
   // Keep the household code in the address so "Add to Home Screen" carries it to the installed app.
   if (!isStandalone()) { try { const u = new URL(location.href); if (u.searchParams.get('join') !== S.code) { u.searchParams.set('join', S.code); history.replaceState(null, '', u); } } catch {} }
-  const c = LS.get('tb.cache', null);
+  LS.del('tb.cache');
+  const c = LS.get('tb.cache.' + S.code, null);
   if (c) { Object.assign(S, { items: c.items || [], usage: c.usage || [], shops: c.shops || [], products: c.products || {}, settings: { ...DEFAULT_SETTINGS, ...(c.settings || {}) } }); render(); }
   await reload();
   if (S.store.kind === 'remote') {
