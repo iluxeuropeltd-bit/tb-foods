@@ -29,13 +29,16 @@ Say "Hey Siri, Freezer", then for example:
 - "We ate 2 chilli" / "Took out a lasagne" / "Used up all the peas"
 - "What's in the Beko?" / "What needs eating soon?"
 
-No place said means the Beko. Removing always takes the oldest batch first.
+- "Add 3 tins of beans to the pantry" / "Add 2 bottles of bleach" (goes to Utilities)
+
+No place said: cleaning and household things go to Utilities, tins and dry goods to the Pantry, everything else to the Beko. Removing always takes the oldest batch first.
 
 ## How it works
 - **Stock**: everything, oldest first; tap − when you eat one; tap an item to edit, move shelf/drawer, or mark frozen.
 - **Scan / Add**: Adding mode or Eating mode. New barcodes are looked up on Open Food Facts; unknown ones you name once and they're remembered. "Freezing it today" toggle tracks home-frozen food.
 - **Plan**: weeks of supply vs your 8-week target, what to eat next (first in, first out), and what's running low.
 - **Spend**: enter each shop's receipt total; monthly totals, by-shop breakdown, history.
+- **Pantry** (dry & tinned food) and **Utilities** (cleaning & household) have their own tabs on Stock. Pantry items can have a best-before date and get flagged in the last week; Utilities are never flagged. Both count in "running low" on Plan but not in the 8-week freezer supply.
 - Rotation flags: frozen food "Eat soon" after 8 weeks, "Eat now" at 3 months (home frozen) or 6 months (bought frozen).
 
 Free tier note: Supabase pauses a free project after 7 days with no use at all. Daily use keeps it awake; if it ever pauses, sign in at supabase.com and click Restore.

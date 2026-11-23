@@ -2,7 +2,7 @@
 'use strict';
 
 const CFG = window.TB_CONFIG || {};
-const VERSION = '1.0.2';
+const VERSION = '1.0.3';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -18,13 +18,24 @@ const LOCS = {
   fridge: { short: 'Fridge', long: 'American fridge', spots: ['Top shelf', 'Middle shelf', 'Bottom shelf', 'Salad drawer', 'Door'] },
   freezer: { short: 'Freezer', long: 'American freezer', spots: ['Top drawer', 'Middle drawer', 'Bottom drawer', 'Shelf', 'Door'] },
   beko: { short: 'Beko', long: 'Beko chest freezer', spots: [] },
+  pantry: { short: 'Pantry', long: 'Pantry (dry & tinned)', spots: ['Cupboard', 'Shelf', 'Drawer'] },
+  utilities: { short: 'Utilities', long: 'Utilities (cleaning etc.)', spots: ['Under sink', 'Utility room', 'Bathroom'] },
 };
-const LOC_ORDER = ['fridge', 'freezer', 'beko'];
+const LOC_ORDER = ['fridge', 'freezer', 'beko', 'pantry', 'utilities'];
+const isFoodLoc = (l) => l !== 'utilities';
+const UTIL_RE = /bleach|detergent|washing (up|powder|liquid|tablets|pods)|cleaner|cleaning|spray|toilet|loo roll|kitchen roll|bin bag|bin liner|sponge|polish|soap|dishwasher|fabric|softener|wipes|tin foil|cling film|baking paper|hand wash|shampoo|toothpaste|batter(y|ies)|light ?bulb|fairy|domestos|flash|zoflora|dettol|febreze/i;
+const PANTRY_RE = /beans|pasta|spaghetti|penne|rice|cereal|porridge|oats|flour|sugar|tea bags|teabags|coffee|oil|vinegar|tinned|tin of|crisps|biscuit|noodle|stock cube|gravy|herbs|spice|salt|pepper|ketchup|mayo|jam|honey|peanut butter|nuts|crackers|lentils|chickpeas/i;
+const guessLoc = (name, unit) => UTIL_RE.test(name) ? 'utilities' : (['tin', 'jar', 'roll'].includes(unit) || PANTRY_RE.test(name)) ? 'pantry' : null;
 const isFrozenLoc = (l) => l === 'freezer' || l === 'beko';
 const WEIGHT_UNITS = ['lb', 'kg', 'g', 'litre'];
 const STORES = ['Tesco', 'Dunnes', 'SuperValu', 'Aldi', 'Lidl', 'M&S', 'Centra', 'Butcher'];
 const STORE_COLORS = { Tesco: '#00539f', Dunnes: '#1b1b1b', SuperValu: '#d6001c', Aldi: '#00205b', Lidl: '#0050aa', 'M&S': '#2e6b3d', Centra: '#e2001a', Butcher: '#8a3b2b' };
 const EMOJI = [
+  [/bleach|cleaner|cleaning|spray|polish|domestos|dettol|flash|zoflora|febreze/, '🧴'], [/toilet|loo roll|kitchen roll|tissue/, '🧻'], [/sponge|scourer/, '🧽'],
+  [/soap|hand wash|shampoo|shower gel|toothpaste/, '🧼'], [/detergent|washing (powder|liquid|tablets|pods)|softener|fabric|dishwasher|fairy|washing up/, '🫧'],
+  [/bin bag|bin liner|foil|cling film|baking paper/, '🗑️'], [/batter(y|ies)/, '🔋'], [/light ?bulb/, '💡'],
+  [/tin of|tinned|(?<!green |broad |runner |french )beans|chickpeas|lentils|soup/, '🥫'], [/cereal|porridge|oats|granola/, '🥣'], [/flour|sugar/, '🌾'], [/tea bags|teabags|\btea\b/, '🫖'], [/coffee/, '☕'],
+  [/crisps/, '🥔'], [/biscuit|cookie|crackers/, '🍪'], [/oil|vinegar|ketchup|mayo|sauce|pesto/, '🫙'], [/jam|honey|peanut butter|nutella/, '🍯'], [/salt|spice|herbs|stock cube|gravy/, '🧂'], [/nuts/, '🥜'],
   [/chilli|chili|curry|stew|casserole|bolognese|soup|goulash|tagine|dahl|dal\b/, '🍲'],
   [/lasagn|pasta|spaghetti|macaroni|penne|ravioli|tortellini|noodle/, '🍝'],
   [/pizza/, '🍕'], [/burger/, '🍔'], [/sausage|hot dog|frank/, '🌭'], [/bacon|rasher/, '🥓'],
@@ -71,6 +82,14 @@ const rotDate = (it) => it.frozen_on || it.bought_on || String(it.added_at || ''
 function flagOf(it) {
   const t = S.settings;
   const age = daysSince(rotDate(it));
+  if (it.location === 'utilities') return null;
+  if (it.location === 'pantry') {
+    if (!it.use_by) return null;
+    const left = -daysSince(it.use_by);
+    if (left < 0) return { level: 'now', text: 'Past best-before' };
+    if (left <= 7) return { level: 'soon', text: 'Use this week' };
+    return null;
+  }
   if (it.location === 'fridge') {
     if (it.use_by) {
       const left = -daysSince(it.use_by);
@@ -92,14 +111,20 @@ function flagOf(it) {
 
 /* ---------------- voice / typed command parsing (mirrors tb_parse in SQL) ---------------- */
 const NUMWORDS = { a: 1, an: 1, one: 1, won: 1, two: 2, to: 2, too: 2, three: 3, four: 4, for: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50, half: 0.5, couple: 2, dozen: 12, all: -1, every: -1 };
-const UNITS = { portion: 'portion', portions: 'portion', bag: 'bag', bags: 'bag', pack: 'pack', packs: 'pack', packet: 'pack', packets: 'pack', tub: 'tub', tubs: 'tub', box: 'box', boxes: 'box', tin: 'tin', tins: 'tin', can: 'tin', cans: 'tin', bottle: 'bottle', bottles: 'bottle', tray: 'tray', trays: 'tray', piece: 'piece', pieces: 'piece', slice: 'slice', slices: 'slice', loaf: 'loaf', loaves: 'loaf', lb: 'lb', lbs: 'lb', pound: 'lb', pounds: 'lb', kg: 'kg', kilo: 'kg', kilos: 'kg', g: 'g', grams: 'g', gram: 'g', litre: 'litre', litres: 'litre', liter: 'litre', liters: 'litre', container: 'container', containers: 'container', carton: 'carton', cartons: 'carton', jar: 'jar', jars: 'jar', punnet: 'punnet', punnets: 'punnet', bunch: 'bunch', bunches: 'bunch', bowl: 'bowl', bowls: 'bowl', meal: 'portion', meals: 'portion', serving: 'portion', servings: 'portion' };
+const UNITS = { portion: 'portion', portions: 'portion', bag: 'bag', bags: 'bag', pack: 'pack', packs: 'pack', packet: 'pack', packets: 'pack', tub: 'tub', tubs: 'tub', box: 'box', boxes: 'box', tin: 'tin', tins: 'tin', can: 'tin', cans: 'tin', bottle: 'bottle', bottles: 'bottle', tray: 'tray', trays: 'tray', piece: 'piece', pieces: 'piece', slice: 'slice', slices: 'slice', loaf: 'loaf', loaves: 'loaf', lb: 'lb', lbs: 'lb', pound: 'lb', pounds: 'lb', kg: 'kg', kilo: 'kg', kilos: 'kg', g: 'g', grams: 'g', gram: 'g', litre: 'litre', litres: 'litre', liter: 'litre', liters: 'litre', container: 'container', containers: 'container', carton: 'carton', cartons: 'carton', jar: 'jar', jars: 'jar', punnet: 'punnet', punnets: 'punnet', bunch: 'bunch', bunches: 'bunch', bowl: 'bowl', bowls: 'bowl', meal: 'portion', meals: 'portion', serving: 'portion', servings: 'portion', roll: 'roll', rolls: 'roll' };
 const BEKO = 'beko|becko|beco|becco|bekko|beeko|beko\'s|bekos|becko\'s|bico|deco|chest';
 function parseCommand(cmd) {
   let t = ' ' + String(cmd || '').toLowerCase() + ' ';
   let action = 'add', loc = null, freeze = false, qty = null, unit = null;
   t = t.replace(/[’`]/g, "'").replace(/\.(?![0-9])/g, ' ').replace(/[^a-z0-9.' -]/g, ' ').replace(/\s+/g, ' ');
-  if (/^ (what|whats|what's|list|how much|how many|show|tell me)\b/.test(t)) return { action: 'list', loc: /\b(eat soon|eating soon|needs? eating|use up|oldest|old|expir|rotate)/.test(t) ? 'soon' : (new RegExp(`\\b(${BEKO})\\b`).test(t) ? 'beko' : /\bfreezer\b/.test(t) ? 'freezer' : /\bfridge\b/.test(t) ? 'fridge' : null) };
-  if (new RegExp(`\\b(${BEKO})\\b`).test(t)) {
+  if (/^ (what|whats|what's|list|how much|how many|show|tell me)\b/.test(t)) return { action: 'list', loc: /\b(eat soon|eating soon|needs? eating|use up|oldest|old|expir|rotate)/.test(t) ? 'soon' : /\b(utilities|utility)\b/.test(t) ? 'utilities' : /\b(pantry|cupboard|press|larder)\b/.test(t) ? 'pantry' : (new RegExp(`\\b(${BEKO})\\b`).test(t) ? 'beko' : /\bfreezer\b/.test(t) ? 'freezer' : /\bfridge\b/.test(t) ? 'fridge' : null) };
+  if (/\b(utilities|utility|under the sink)\b/.test(t)) {
+    loc = 'utilities';
+    t = t.replace(/\b((in|into|to|from|out of|on|at) )?((the|my|our) )?(utilities|utility|under the sink)( (room|press|cupboard|cupboards))?\b/g, ' ');
+  } else if (/\b(pantry|cupboard|cupboards|press|larder)\b/.test(t)) {
+    loc = 'pantry';
+    t = t.replace(/\b((in|into|to|from|out of|on|at) )?((the|my|our) )?(food )?(pantry|cupboard|cupboards|press|larder)\b/g, ' ');
+  } else if (new RegExp(`\\b(${BEKO})\\b`).test(t)) {
     loc = 'beko';
     t = t.replace(new RegExp(`\\b((in|into|to|from|out of|on|at) )?((the|my|our) )?(${BEKO})( (chest|freezer|chest freezer))*\\b`, 'g'), ' ');
   } else if (/\b(fridge freezer|freezer)\b/.test(t)) {
@@ -365,7 +390,7 @@ async function runLocalCommand(p) {
   }
   if (!p.name) return "Sorry, I didn't catch the food.";
   if (p.action === 'add') {
-    const loc = p.loc || 'beko';
+    const loc = p.loc || guessLoc(p.name, p.unit) || 'beko';
     await addItem({ name: p.name, qty: p.qty, unit: p.unit, location: loc, frozen_on: p.freeze ? today() : null }, { silent: true });
     return `Added ${qtyText(p.qty, p.unit)} ${p.unit ? 'of ' : ''}${p.name} to the ${LOCS[loc].short}${p.freeze ? ', frozen today' : ''}.`;
   }
@@ -409,18 +434,19 @@ function supplyStats() {
 
 function lowStock() {
   const target = S.settings.targetWeeks, now = Date.now(), win = 56;
-  const fu = S.usage.filter((u) => isFrozenLoc(u.location) && now - new Date(u.used_at).getTime() <= win * 864e5);
+  const tracked = (l) => l !== 'fridge';
+  const fu = S.usage.filter((u) => tracked(u.location) && now - new Date(u.used_at).getTime() <= win * 864e5);
   if (!fu.length) return [];
   const first = fu.reduce((m, u) => Math.min(m, new Date(u.used_at).getTime()), now);
   const weeksObserved = Math.max(1, (now - first) / 864e5 / 7);
   const by = {};
-  for (const u of fu) { const k = u.name.toLowerCase(); (by[k] ||= { name: u.name, used: 0 }).used += Number(u.qty) || 0; }
+  for (const u of fu) { const k = u.name.toLowerCase(); (by[k] ||= { name: u.name, loc: u.location, used: 0 }).used += Number(u.qty) || 0; }
   const out = [];
   for (const k in by) {
     const perWeek = by[k].used / weeksObserved;
-    const stock = S.items.filter((i) => isFrozenLoc(i.location) && i.name.toLowerCase() === k).reduce((s, i) => s + Number(i.qty), 0);
+    const stock = S.items.filter((i) => tracked(i.location) && i.name.toLowerCase() === k).reduce((s, i) => s + Number(i.qty), 0);
     const need = Math.ceil(perWeek * target - stock);
-    if (need > 0) out.push({ name: by[k].name, perWeek, stock, buy: need });
+    if (need > 0) out.push({ name: by[k].name, loc: by[k].loc, perWeek, stock, buy: need });
   }
   return out.sort((a, b) => b.buy - a.buy).slice(0, 12);
 }
@@ -443,6 +469,8 @@ function itemRow(it) {
   if (it.spot) bits.push(it.spot);
   if (f) bits.push(`<span class="flag">${f.text}</span>`);
   if (it.location === 'fridge' && it.use_by) bits.push('use by ' + fmtDay(it.use_by));
+  else if (it.location === 'pantry' && it.use_by) bits.push('best before ' + fmtDay(it.use_by));
+  else if (!isFoodLoc(it.location) || it.location === 'pantry') bits.push('added ' + fmtDay(it.bought_on));
   else bits.push((it.frozen_on ? '❄️ frozen ' : isFrozenLoc(it.location) ? 'in ' : 'bought ') + fmtAge(age) + (age > 0 ? ' ago' : ''));
   const img = it.image ? `<img src="${esc(it.image)}" alt="" loading="lazy" onerror="this.replaceWith(document.createTextNode('${emojiFor(it.name)}'))">` : emojiFor(it.name);
   return `<div class="item ${f ? f.level : ''}" data-id="${it.id}">
@@ -466,7 +494,7 @@ function renderStock() {
 
   let html = '';
   if (!isStandalone() && isIOS()) html += `<div class="install"><svg viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg><div>Install it: tap <b>Share</b> then <b>Add to Home Screen</b>.</div></div>`;
-  html += `<div class="seg" role="tablist">${['all', ...LOC_ORDER].map((l) => `<button data-act="loc" data-loc="${l}" class="${S.loc === l && !q ? 'on' : ''}">${l === 'all' ? 'All' : LOCS[l].short}<span class="n">${counts[l]}</span></button>`).join('')}</div>`;
+  html += `<div class="seg seg-scroll" role="tablist">${['all', ...LOC_ORDER].map((l) => `<button data-act="loc" data-loc="${l}" class="${S.loc === l && !q ? 'on' : ''}">${l === 'all' ? 'All' : LOCS[l].short}<span class="n">${counts[l]}</span></button>`).join('')}</div>`;
   html += `<div class="searchbar"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" id="search" placeholder="Search food" value="${esc(S.q)}" autocomplete="off"></div>`;
   if (soon.length && !q) html += `<button class="alert ${nowN ? 'now' : 'soon'}" data-act="goto-plan" style="width:100%;text-align:left"><span style="font-size:22px">⏳</span><span class="grow"><b>${soon.length} to eat soon</b> · oldest first in each list below</span><span class="muted">›</span></button>`;
 
@@ -481,7 +509,7 @@ function renderStock() {
       const units = li.reduce((s, i) => s + countOf(i), 0);
       html += `<div class="group-h"><h3><span class="swatch" style="background:var(--${l})"></span>${LOCS[l].long}</h3><span class="small muted">${units} item${units === 1 ? '' : 's'} · oldest first</span></div><div class="list">${li.map(itemRow).join('')}</div>`;
     }
-  } else if (S.loc === 'fridge' || S.loc === 'freezer') {
+  } else if (LOCS[S.loc].spots.length) {
     // group by shelf/drawer for the American fridge freezer
     const spots = [...LOCS[S.loc].spots, null];
     let any = false;
@@ -496,7 +524,10 @@ function renderStock() {
   }
   const hadFocus = document.activeElement?.id === 'search';
   const pos = hadFocus ? document.activeElement.selectionStart : 0;
+  const segX = v.querySelector('.seg-scroll')?.scrollLeft || 0;
   v.innerHTML = html;
+  const seg = v.querySelector('.seg-scroll'), on = seg?.querySelector('.on');
+  if (seg) { seg.scrollLeft = segX; if (on && (on.offsetLeft < seg.scrollLeft || on.offsetLeft + on.offsetWidth > seg.scrollLeft + seg.clientWidth)) seg.scrollLeft = on.offsetLeft - 8; }
   if (hadFocus) { const s = $('#search'); s.focus(); try { s.setSelectionRange(pos, pos); } catch {} }
 }
 
@@ -525,7 +556,7 @@ function renderPlan() {
   if (fridgeSoon.length) html += `<h3>Fridge: use soon</h3><div class="list">${fridgeSoon.map(itemRow).join('')}</div>`;
   html += `<h3>Running low for ${st.target} weeks</h3>`;
   if (low.length) {
-    html += `<div class="list">${low.map((l) => `<div class="plain-row"><span class="thumb" style="width:36px;height:36px;font-size:20px">${emojiFor(l.name)}</span><div class="grow"><b>${esc(l.name)}</b><div class="small muted">You eat about ${l.perWeek < 1 ? 'one every ' + Math.round(7 / l.perWeek) + ' days' : num(+l.perWeek.toFixed(1)) + ' a week'} · ${num(l.stock)} in stock</div></div><span class="buy">Buy ${l.buy}</span></div>`).join('')}</div>
+    html += `<div class="list">${low.map((l) => `<div class="plain-row"><span class="thumb" style="width:36px;height:36px;font-size:20px">${emojiFor(l.name)}</span><div class="grow"><b>${esc(l.name)}</b><div class="small muted">You ${isFoodLoc(l.loc) ? 'eat' : 'use'} about ${l.perWeek < 1 ? 'one every ' + Math.round(7 / l.perWeek) + ' days' : num(+l.perWeek.toFixed(1)) + ' a week'} · ${num(l.stock)} in stock</div></div><span class="buy">Buy ${l.buy}</span></div>`).join('')}</div>
     <button class="btn ghost block" data-act="share-list" style="margin-top:10px">Share shopping list</button>`;
   } else html += `<div class="card small muted">Once you've logged a few things eaten, this shows what to buy to keep ${st.target} weeks of each food you actually eat.</div>`;
   v.innerHTML = html;
@@ -574,7 +605,7 @@ function updateSayPreview() {
   const p = parseCommand(txt);
   if (p.action === 'list') { el.innerHTML = `<div class="preview ok"><div class="small muted">Question</div><div class="line">Tap below to see the answer</div><button class="btn block" style="margin-top:12px" data-act="say-go">Ask</button></div>`; sayState = { p }; return; }
   const prev = sayState?.text === txt ? sayState : null;
-  const loc = prev?.loc ?? p.loc ?? (p.action === 'add' ? S.lastLoc : null);
+  const loc = prev?.loc ?? p.loc ?? (p.action === 'add' ? (guessLoc(p.name || '', p.unit) || S.lastLoc) : null);
   const freeze = prev?.freezeTouched ? prev.freeze : (p.freeze || false);
   sayState = { text: txt, p, loc, freeze, freezeTouched: prev?.freezeTouched };
   if (p.action === 'remove') {
@@ -767,7 +798,7 @@ function itemForm(d, { title, existing } = {}) {
     <div class="row" style="margin-top:4px">
       <div class="grow"><label class="field">Bought</label><input type="date" id="f-bought" value="${d.bought_on || today()}" max="${today()}"></div>
       ${isFrozenLoc(loc) && d.frozen_on ? `<div class="grow"><label class="field">Frozen on</label><input type="date" id="f-frozen" value="${d.frozen_on}" max="${today()}"></div>` : ''}
-      ${loc === 'fridge' ? `<div class="grow"><label class="field">Use by <span class="muted">(optional)</span></label><input type="date" id="f-useby" value="${d.use_by || ''}"></div>` : ''}
+      ${loc === 'fridge' || loc === 'pantry' ? `<div class="grow"><label class="field">${loc === 'pantry' ? 'Best before' : 'Use by'} <span class="muted">(optional)</span></label><input type="date" id="f-useby" value="${d.use_by || ''}"></div>` : ''}
     </div>`;
 }
 function readForm(d) {
@@ -794,7 +825,7 @@ function openItemSheet(it) {
   const d = { ...it };
   const draw = () => openSheet(`${itemForm(d, { title: `${LOCS[d.location].long} · added ${fmtDay(it.bought_on)}`, existing: true })}
     <div class="actions">
-      <button class="btn eat" data-act="i-eat" data-n="1">Ate 1</button><button class="btn danger" data-act="i-eat" data-n="all">Ate all</button>
+      <button class="btn eat" data-act="i-eat" data-n="1">${isFoodLoc(d.location) ? 'Ate' : 'Used'} 1</button><button class="btn danger" data-act="i-eat" data-n="all">${isFoodLoc(d.location) ? 'Ate' : 'Used'} all</button>
       <button class="btn full" data-act="i-save">Save changes</button>
     </div>`);
   S.editing = it;
@@ -892,7 +923,7 @@ async function handleCode(code) {
   scanStatus('Looking up ' + esc(code) + '…');
   const p = await lookupProduct(code);
   const pref = LS.get('tb.prodPref', {})[code] || {};
-  const loc = pref.location || S.products[code]?.location || S.lastLoc || 'beko';
+  const loc = pref.location || S.products[code]?.location || (p?.name && guessLoc(p.name, p.unit)) || S.lastLoc || 'beko';
   const d = { name: p?.name || '', image: p?.image || null, barcode: code, qty: 1, unit: p?.unit || null, location: loc, spot: pref.spot || null, bought_on: today(), frozen_on: pref.freeze ? today() : null };
   scanStatus(p ? '' : 'Not found online. Type its name once and it will be remembered.');
   S.onSheetClose = () => { scanStatus('Ready for the next item.'); setTimeout(resumeScanner, 300); };
