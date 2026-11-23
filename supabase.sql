@@ -137,6 +137,11 @@ begin
     if t ~ '\m(eat soon|eating soon|need(s)? eating|use up|oldest|old|expir|rotate)' then loc := 'soon'; end if;
   end if;
 
+  -- "fridge or freezer" / "fridge and freezers" = everywhere cold
+  if t ~ '\mfridge (or|and|or the|and the) (freezer|freezers)\M' then
+    loc := 'cold';
+    t := regexp_replace(t, '\m((in|from|out of) )?((the|my|our) )?fridge (or|and)( the)? freezers?\M', ' ', 'g');
+  end if;
   -- "big freezer" / "chest freezer" mean the Beko
   t := regexp_replace(t, '\m(big|chest) freezer\M', ' beko ', 'g');
   -- location (utilities and pantry first, then chest freezer, American freezer, fridge)
@@ -163,7 +168,7 @@ begin
   if act = 'list' then
     if loc = 'soon' then return jsonb_build_object('action', 'list', 'loc', loc); end if;
     -- a question about one food ("how many chilli do we have", "do we have any peas")
-    nm := regexp_replace(t, '\m(what''s|whats|what|which|is|are|was|in|there|any|anything|do|does|we|i|you|have|has|got|left|how|many|much|of|the|our|my|show|me|list|tell|check|stock|food|foods|items|item|things|stuff|currently|still|some|at|moment|now|where|it|they|kept|portions|portion|bags|bag|tins|tin|packs|pack|bottles|bottle|units)\M', ' ', 'g');
+    nm := regexp_replace(t, '\m(what''s|whats|what|which|is|are|was|in|there|any|anything|do|does|we|i|you|have|has|got|left|how|many|much|of|the|our|my|show|me|list|tell|check|stock|food|foods|items|item|things|stuff|currently|still|some|at|moment|now|where|it|they|kept|portions|portion|bags|bag|tins|tin|packs|pack|bottles|bottle|units|cans|can|jars|jar|boxes|box|packets|packet|loaves|loaf|cartons|carton|tubs|tub|trays|tray|rolls|roll|pieces|piece|or|and|left)\M', ' ', 'g');
     nm := trim(regexp_replace(nm, '\s+', ' ', 'g'));
     if nm <> '' then return jsonb_build_object('action', 'count', 'name', nm, 'loc', loc); end if;
     return jsonb_build_object('action', 'list', 'loc', loc);
@@ -226,11 +231,11 @@ begin
 end $$;
 
 create or replace function public.tb_loc_ok(want text, have text) returns boolean language sql immutable as $$
-  select want is null or have = want or (want = 'freezers' and have in ('freezer','beko'))
+  select want is null or have = want or (want = 'freezers' and have in ('freezer','beko')) or (want = 'cold' and have in ('fridge','freezer','beko'))
 $$;
 
 create or replace function public.tb_loc_name(loc text) returns text language sql immutable as $$
-  select case loc when 'freezers' then 'freezers' when 'beko' then 'Beko' when 'freezer' then 'American freezer' when 'fridge' then 'fridge'
+  select case loc when 'cold' then 'fridge and freezers' when 'freezers' then 'freezers' when 'beko' then 'Beko' when 'freezer' then 'American freezer' when 'fridge' then 'fridge'
                   when 'pantry' then 'pantry' when 'utilities' then 'utility cupboard' else loc end
 $$;
 
@@ -345,12 +350,12 @@ begin
               order by coalesce(frozen_on, bought_on) limit 8) s;
       return coalesce('Eat these soon: ' || lst || '.', 'Nothing needs eating soon. Everything is within its rotation.');
     end if;
-    select string_agg(public.tb_qty_text(qty, unit, name) || case when loc = 'freezers' then ' in the ' || public.tb_loc_name(location) else '' end, ', ' order by coalesce(frozen_on, bought_on))
+    select string_agg(public.tb_qty_text(qty, unit, name) || case when loc in ('freezers','cold') then ' in the ' || public.tb_loc_name(location) else '' end, ', ' order by coalesce(frozen_on, bought_on))
       into lst
       from (select * from items where household = hh and gone_at is null and qty > 0 and public.tb_loc_ok(loc, location)
             order by coalesce(frozen_on, bought_on) limit 12) s;
     return coalesce('In the ' || coalesce(public.tb_loc_name(loc), 'kitchen') || ', oldest first: ' || lst || '.',
-                    'The ' || coalesce(public.tb_loc_name(loc), 'kitchen') || case when loc = 'freezers' then ' are' else ' is' end || ' empty.');
+                    'The ' || coalesce(public.tb_loc_name(loc), 'kitchen') || case when loc in ('freezers','cold') then ' are' else ' is' end || ' empty.');
   end if;
 
   if p->>'action' = 'unsure' then
@@ -363,7 +368,11 @@ begin
       into lst
       from (select i.location, max(i.name) nm, i.unit, sum(i.qty) q from items i
               where i.household = hh and i.gone_at is null and i.qty > 0 and public.tb_loc_ok(loc, i.location)
-                and (i.name ilike '%' || nm || '%' or nm ilike '%' || i.name || '%' or extensions.word_similarity(nm, lower(i.name)) > 0.5)
+                and (i.name ilike '%' || nm || '%' or lower(i.name) || 's' = nm or lower(i.name) = nm || 's' or extensions.similarity(lower(i.name), nm) > 0.6
+                     -- looser match only when nothing matches closely
+                     or (not exists (select 1 from items j where j.household = hh and j.gone_at is null and j.qty > 0 and public.tb_loc_ok(loc, j.location)
+                                       and (j.name ilike '%' || nm || '%' or lower(j.name) || 's' = nm or lower(j.name) = nm || 's' or extensions.similarity(lower(j.name), nm) > 0.6))
+                         and (nm ilike '%' || i.name || '%' or extensions.word_similarity(nm, lower(i.name)) > 0.5)))
               group by i.location, lower(i.name), i.unit order by i.location limit 6) s;
     return coalesce('You have ' || lst || '.',
                     'You have no ' || nm || case when loc is null then '' else ' in the ' || public.tb_loc_name(loc) end || '.');
@@ -429,7 +438,7 @@ begin
     end if;
     insert into usage (household, name, location, qty) values (hh, r.name, r.location, took);
     if remaining > 0 then remaining := remaining - took; end if;
-    loc := case when loc is null or loc = 'freezers' then r.location else loc end;
+    loc := case when loc is null or loc in ('freezers','cold') then r.location else loc end;
     u := coalesce(u, r.unit);
     nm := r.name;
   end loop;
