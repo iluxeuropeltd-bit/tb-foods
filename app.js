@@ -2,7 +2,7 @@
 'use strict';
 
 const CFG = window.TB_CONFIG || {};
-const VERSION = '1.0.9';
+const VERSION = '1.0.10';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -512,6 +512,7 @@ function renderStock() {
   if (!isStandalone() && isIOS()) html += `<div class="install"><svg viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg><div>Install it: tap <b>Share</b> then <b>Add to Home Screen</b>.</div></div>`;
   html += `<div class="seg seg-scroll" role="tablist">${['all', ...LOC_ORDER].map((l) => `<button data-act="loc" data-loc="${l}" class="${S.loc === l && !q ? 'on' : ''}">${l === 'all' ? 'All' : LOCS[l].short}<span class="n">${counts[l]}</span></button>`).join('')}</div>`;
   html += `<div class="searchbar"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" id="search" placeholder="Search food" value="${esc(S.q)}" autocomplete="off"></div>`;
+  if (S.store?.kind === 'remote' && S.loaded && !S.items.length && !S.usage.length && !S.shops.length) html += `<div class="card join-card"><b>Is this the right list?</b><p class="small muted" style="margin:4px 0 10px">This phone's list is empty. If your other phone or Siri already has food in it, paste that code here (on the other phone: More › Our household › Copy code).</p><div style="display:flex;gap:8px"><input type="text" id="join-code" placeholder="TB-XXXX-XXXX-XXXX" autocapitalize="characters" autocomplete="off" style="flex:1;min-width:0"><button class="btn" data-act="join-here">Join</button></div></div>`;
   if (soon.length && !q) html += `<button class="alert ${nowN ? 'now' : 'soon'}" data-act="goto-plan" style="width:100%;text-align:left"><span style="font-size:22px">⏳</span><span class="grow"><b>${soon.length} to eat soon</b> · oldest first in each list below</span><span class="muted">›</span></button>`;
 
   if (!S.items.length) {
@@ -1149,6 +1150,7 @@ document.addEventListener('click', async (e) => {
 
     // onboarding
     case 'ob-new': return joinHousehold(newCode());
+    case 'join-here': { const c = normCode($('#join-code').value); if (c.length < 10) return toast('That code looks too short.'); if (c === S.code) return toast("That's this phone's own code."); toast('Joined. Loading your list…'); return joinHousehold(c); }
     case 'ob-join': { const c = normCode($('#ob-code').value); if (c.length < 10) return toast('That code looks too short.'); return joinHousehold(c); }
   }
 });
