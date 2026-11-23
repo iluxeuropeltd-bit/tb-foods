@@ -15,6 +15,8 @@
   --beko-soft: #eeeafb;
   --pantry: #b7791f;
   --pantry-soft: #fbf1df;
+  --prepper: #5b6b2f;
+  --prepper-soft: #eef0e0;
   --utilities: #2b8a7e;
   --utilities-soft: #ddf3ef;
   --soon: #b86b00;
@@ -46,6 +48,8 @@
     --beko-soft: #241e3c;
     --pantry: #e0a64a;
     --pantry-soft: #33281a;
+    --prepper: #a3b46a;
+    --prepper-soft: #232816;
     --utilities: #5cc2b4;
     --utilities-soft: #17302c;
     --soon: #f0a63a;
@@ -141,6 +145,7 @@ label.field { display: block; font-size: 13px; color: var(--muted); font-weight:
 .chip.loc-beko.on { background: var(--beko); border-color: var(--beko); }
 .chips.big .chip { min-height: 52px; flex: 1 1 28%; font-weight: 600; border-radius: 14px; }
 .chip.loc-pantry.on { background: var(--pantry); border-color: var(--pantry); }
+.chip.loc-prepper.on { background: var(--prepper); border-color: var(--prepper); }
 .chip.loc-utilities.on { background: var(--utilities); border-color: var(--utilities); }
 .seg-scroll { position: relative; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .seg-scroll::-webkit-scrollbar { display: none; }
@@ -179,7 +184,7 @@ label.field { display: block; font-size: 13px; color: var(--muted); font-weight:
 .item.now::before { background: var(--now); }
 .thumb { width: 44px; height: 44px; flex: none; border-radius: 12px; display: grid; place-items: center; font-size: 24px; background: var(--brand-soft); overflow: hidden; }
 .thumb img { width: 100%; height: 100%; object-fit: cover; background: #fff; }
-.thumb.fridge { background: var(--fridge-soft); } .thumb.freezer { background: var(--freezer-soft); } .thumb.beko { background: var(--beko-soft); } .thumb.pantry { background: var(--pantry-soft); } .thumb.utilities { background: var(--utilities-soft); }
+.thumb.fridge { background: var(--fridge-soft); } .thumb.freezer { background: var(--freezer-soft); } .thumb.beko { background: var(--beko-soft); } .thumb.pantry { background: var(--pantry-soft); } .thumb.prepper { background: var(--prepper-soft); } .thumb.utilities { background: var(--utilities-soft); }
 .item .main { flex: 1; min-width: 0; text-align: left; }
 .item .name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .item .meta { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

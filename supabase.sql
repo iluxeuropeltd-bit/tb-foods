@@ -17,7 +17,7 @@ create table if not exists public.items (
   name text not null,
   qty numeric not null default 1,
   unit text,
-  location text not null check (location in ('fridge','freezer','beko','pantry','utilities')),
+  location text not null check (location in ('fridge','freezer','beko','pantry','prepper','utilities')),
   spot text,
   barcode text,
   image text,
@@ -32,7 +32,7 @@ alter table public.items add column if not exists bought_on date not null defaul
 alter table public.items add column if not exists frozen_on date;
 create index if not exists items_hh on public.items (household) where gone_at is null;
 alter table public.items drop constraint if exists items_location_check;
-alter table public.items add constraint items_location_check check (location in ('fridge','freezer','beko','pantry','utilities'));
+alter table public.items add constraint items_location_check check (location in ('fridge','freezer','beko','pantry','prepper','utilities'));
 
 create table if not exists public.usage (
   id uuid primary key default gen_random_uuid(),
@@ -148,6 +148,9 @@ begin
   if t ~ '\m(utilities|utility|under the sink)\M' then
     loc := coalesce(loc, 'utilities');
     t := regexp_replace(t, '\m((in|into|to|from|out of|on|at) )?((the|my|our) )?(utilities|utility|under the sink)( (room|press|cupboard|cupboards))?\M', ' ', 'g');
+  elsif t ~ '\m(prepper|preppers|prepping|prepper''s|stockpile|emergency (supplies|store|box|kit|stash))\M' then
+    loc := coalesce(loc, 'prepper');
+    t := regexp_replace(t, '\m((in|into|to|from|out of|on|at) )?((the|my|our) )?(prepper|preppers|prepping|prepper''s|stockpile|emergency (supplies|store|box|kit|stash))( (box|store|stash|supplies|cupboard|shelf))?\M', ' ', 'g');
   elsif t ~ '\m(pantry|cupboard|cupboards|press|larder)\M' then
     loc := coalesce(loc, 'pantry');
     t := regexp_replace(t, '\m((in|into|to|from|out of|on|at) )?((the|my|our) )?(food )?(pantry|cupboard|cupboards|press|larder)\M', ' ', 'g');
@@ -236,7 +239,7 @@ $$;
 
 create or replace function public.tb_loc_name(loc text) returns text language sql immutable as $$
   select case loc when 'cold' then 'fridge and freezers' when 'freezers' then 'freezers' when 'beko' then 'Beko' when 'freezer' then 'American freezer' when 'fridge' then 'fridge'
-                  when 'pantry' then 'pantry' when 'utilities' then 'utility cupboard' else loc end
+                  when 'pantry' then 'pantry' when 'prepper' then 'prepper store' when 'utilities' then 'utility cupboard' else loc end
 $$;
 
 -- everyday dry and tinned food: Siri knows these and puts them in the pantry when no place is said
@@ -244,9 +247,15 @@ create or replace function public.tb_pantry_foods() returns text[] language sql 
   select array['baked beans','beans','tinned tomatoes','chopped tomatoes','tomato puree','passata','tinned tuna','tuna','tinned sweetcorn','tinned soup','packet soup','cup a soup','chickpeas','kidney beans','lentils','coconut milk','tinned fruit','peaches','pineapple','rice pudding','custard','uht milk','long life milk','pasta','spaghetti','penne','fusilli','lasagne sheets','noodles','egg noodles','instant noodles','pot noodle','rice','basmati rice','microwave rice','couscous','flour','plain flour','self raising flour','cornflour','sugar','brown sugar','icing sugar','baking powder','bread soda','yeast','custard powder','jelly','cereal','cornflakes','weetabix','rice krispies','granola','muesli','porridge','porridge oats','oats','cereal bars','tea bags','coffee','instant coffee','ground coffee','coffee pods','hot chocolate','drinking chocolate','biscuits','digestives','crackers','cream crackers','rice cakes','crisps','popcorn','nuts','peanuts','raisins','chocolate','sweets','jam','marmalade','honey','peanut butter','nutella','ketchup','brown sauce','mayonnaise','mayo','mustard','salad cream','soy sauce','sweet chilli sauce','bbq sauce','pasta sauce','curry sauce','sweet and sour sauce','pesto','vinegar','balsamic vinegar','olive oil','vegetable oil','sunflower oil','stock cubes','oxo cubes','gravy granules','bisto','salt','pepper','herbs','mixed herbs','spices','curry powder','paprika','cumin','chilli flakes','garlic','garlic granules','wraps','tortillas','breadcrumbs','bottled water','water','fizzy drinks','minerals','squash','cordial','juice','orange juice','wine','beer']
 $$;
 
+-- prepper (emergency) supplies: Siri knows these
+create or replace function public.tb_prepper_foods() returns text[] language sql immutable as $$
+  select array['matches','lighters','firelighters','candles','tea lights','batteries','aa batteries','aaa batteries','torch','head torch','power bank','first aid kit','plasters','paracetamol','ibuprofen','hand sanitiser','wet wipes','bin bags','toilet rolls','kitchen roll','duct tape','gas canisters','camping gas','camping stove','firewood','logs','briquettes','coal','foil blankets','blankets','water tablets','water filter','bottled water','radio','rope','paraffin','tinned meat','corned beef','spam','tinned stew','dried beans','powdered milk','energy bars','dried fruit','jerky','rice','pasta','porridge oats','crackers','uht milk','sugar','salt','tea bags','coffee','stock cubes','tinned soup','baked beans','tinned tuna','peanut butter','honey','noodles','nuts']
+$$;
+
 -- Where to put something when no place was said
 create or replace function public.tb_guess_loc(nm text, u text) returns text language sql immutable as $$
   select case
+    when nm ~* '(\mmatch(es)?\M|lighters?\M|firelighters?|candles?|tea ?lights?|torch|power ?bank|first aid|plasters|gas canisters?|camping (gas|stove)|firewood|\mlogs\M|briquettes|\mcoal\M|duct tape|foil blankets?|water (tablets|filter|purif)|emergency|\mradio\M|paraffin|\mrope\M|batter(y|ies))' then 'prepper'
     when nm ~* '(bleach|detergent|washing (up|powder|liquid|tablets|pods)|cleaner|cleaning|spray|toilet|loo roll|kitchen roll|bin bag|bin liner|sponge|polish|soap|dishwasher|fabric|softener|wipes|tin foil|cling film|baking paper|hand wash|shampoo|toothpaste|batter(y|ies)|light ?bulb|fairy|domestos|flash|zoflora|dettol|febreze)' then 'utilities'
     when lower(nm) = any(public.tb_pantry_foods()) then 'pantry'
     when u in ('tin','jar','roll') or nm ~* '(beans|pasta|spaghetti|penne|rice|cereal|porridge|oats|flour|sugar|tea bags|teabags|coffee|oil|vinegar|tinned|tin of|crisps|biscuit|noodle|stock cube|gravy|herbs|spice|salt|pepper|ketchup|mayo|jam|honey|peanut butter|nuts|crackers|lentils|chickpeas)' then 'pantry'
@@ -297,6 +306,7 @@ begin
   select hh, n from (
     select unnest(public.tb_default_foods()) n
     union select unnest(public.tb_pantry_foods())
+    union select unnest(public.tb_prepper_foods())
     union select lower(name) from items where household = hh and gone_at is null and name !~* '\m(siri|hey|what|whats|something|anything|stuff)\M'
     union select lower(name) from products where household = hh
   ) x where n <> ''
@@ -345,7 +355,7 @@ begin
         into lst
         from (select * from items where household = hh and gone_at is null and qty > 0
                 and ((location = 'fridge' and coalesce(use_by, bought_on + 3) <= current_date + 1)
-                  or (location = 'pantry' and use_by <= current_date + 7)
+                  or (location in ('pantry','prepper') and use_by <= current_date + 7)
                   or (location in ('freezer','beko') and coalesce(frozen_on, bought_on) <= current_date - 56))
               order by coalesce(frozen_on, bought_on) limit 8) s;
       return coalesce('Eat these soon: ' || lst || '.', 'Nothing needs eating soon. Everything is within its rotation.');

@@ -2,7 +2,7 @@
 'use strict';
 
 const CFG = window.TB_CONFIG || {};
-const VERSION = '1.0.7';
+const VERSION = '1.0.8';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -19,18 +19,21 @@ const LOCS = {
   freezer: { short: 'Freezer', long: 'American freezer', spots: ['Top drawer', 'Middle drawer', 'Bottom drawer', 'Shelf', 'Door'] },
   beko: { short: 'Beko', long: 'Beko chest freezer', spots: [] },
   pantry: { short: 'Pantry', long: 'Pantry (dry & tinned)', spots: ['Cupboard', 'Shelf', 'Drawer'] },
+  prepper: { short: 'Prepper', long: 'Prepper (emergency supplies)', spots: ['Prepper box', 'Shelf', 'Garage', 'Attic'] },
   utilities: { short: 'Utilities', long: 'Utilities (cleaning etc.)', spots: ['Under sink', 'Utility room', 'Bathroom'] },
 };
-const LOC_ORDER = ['fridge', 'freezer', 'beko', 'pantry', 'utilities'];
-const isFoodLoc = (l) => l !== 'utilities';
+const LOC_ORDER = ['fridge', 'freezer', 'beko', 'pantry', 'prepper', 'utilities'];
+const isFoodLoc = (l) => l !== 'utilities' && l !== 'prepper';
+const PREPPER_RE = /\bmatch(es)?\b|lighters?\b|firelighters?|candles?|tea ?lights?|torch(es)?|head ?torch|batter(y|ies)|power ?bank|first aid|plasters|gas canisters?|camping (gas|stove)|firewood|logs\b|briquettes|coal\b|duct tape|foil blankets?|water (tablets|filter|purif)|emergency|radio\b|paraffin|rope\b/i;
 const UTIL_RE = /bleach|detergent|washing (up|powder|liquid|tablets|pods)|cleaner|cleaning|spray|toilet|loo roll|kitchen roll|bin bag|bin liner|sponge|polish|soap|dishwasher|fabric|softener|wipes|tin foil|cling film|baking paper|hand wash|shampoo|toothpaste|batter(y|ies)|light ?bulb|fairy|domestos|flash|zoflora|dettol|febreze/i;
 const PANTRY_RE = /tomato(es)? (puree|tins?)|chopped tomatoes|passata|tuna|pesto|weetabix|cornflakes|krispies|granola|muesli|digestives|chocolate|sauce|olive oil|stock|noodles|couscous|custard|jelly|marmalade|nutella|mustard|wraps|tortillas|breadcrumbs|squash|cordial|wine|beer|beans|pasta|spaghetti|penne|rice|cereal|porridge|oats|flour|sugar|tea bags|teabags|coffee|oil|vinegar|tinned|tin of|crisps|biscuit|noodle|stock cube|gravy|herbs|spice|salt|pepper|ketchup|mayo|jam|honey|peanut butter|nuts|crackers|lentils|chickpeas/i;
-const guessLoc = (name, unit) => UTIL_RE.test(name) ? 'utilities' : (['tin', 'jar', 'roll'].includes(unit) || PANTRY_RE.test(name)) ? 'pantry' : null;
+const guessLoc = (name, unit) => PREPPER_RE.test(name) ? 'prepper' : UTIL_RE.test(name) ? 'utilities' : (['tin', 'jar', 'roll'].includes(unit) || PANTRY_RE.test(name)) ? 'pantry' : null;
 const isFrozenLoc = (l) => l === 'freezer' || l === 'beko';
 const WEIGHT_UNITS = ['lb', 'kg', 'g', 'litre'];
 const STORES = ['Tesco', 'Dunnes', 'SuperValu', 'Aldi', 'Lidl', 'M&S', 'Centra', 'Butcher'];
 const STORE_COLORS = { Tesco: '#00539f', Dunnes: '#1b1b1b', SuperValu: '#d6001c', Aldi: '#00205b', Lidl: '#0050aa', 'M&S': '#2e6b3d', Centra: '#e2001a', Butcher: '#8a3b2b' };
 const EMOJI = [
+  [/\bmatch(es)?\b|lighters?\b|firelighters?|firewood|logs\b|briquettes|coal\b/, '🔥'], [/candles?|tea ?lights?/, '🕯️'], [/torch/, '🔦'], [/first aid|plasters/, '🩹'], [/power ?bank/, '🔌'], [/radio\b/, '📻'], [/gas canister|camping (gas|stove)/, '⛽'],
   [/bleach|cleaner|cleaning|spray|polish|domestos|dettol|flash|zoflora|febreze/, '🧴'], [/toilet|loo roll|kitchen roll|tissue/, '🧻'], [/sponge|scourer/, '🧽'],
   [/soap|hand wash|shampoo|shower gel|toothpaste/, '🧼'], [/detergent|washing (powder|liquid|tablets|pods)|softener|fabric|dishwasher|fairy|washing up/, '🫧'],
   [/bin bag|bin liner|foil|cling film|baking paper/, '🗑️'], [/batter(y|ies)/, '🔋'], [/light ?bulb/, '💡'],
@@ -83,7 +86,7 @@ function flagOf(it) {
   const t = S.settings;
   const age = daysSince(rotDate(it));
   if (it.location === 'utilities') return null;
-  if (it.location === 'pantry') {
+  if (it.location === 'pantry' || it.location === 'prepper') {
     if (!it.use_by) return null;
     const left = -daysSince(it.use_by);
     if (left < 0) return { level: 'now', text: 'Past best-before' };
@@ -121,10 +124,13 @@ function parseCommand(cmd) {
   t = t.replace(/\b(big|chest) freezer\b/g, ' beko ');
   t = t.replace(/\b(hey|hi|ok|okay|o k) (siri|seri|sirie|siri's|cyril)\b/g, ' ').replace(/\b(siri|seri|sirie)\b/g, ' ').replace(/\s+/g, ' ');
   for (let t0 = ''; t0 !== t;) { t0 = t; t = t.replace(/^ (hey|hi|ok|okay|um|umm|uh|er|erm|so|right|and|please|can you|could you|would you|will you|go ahead and|i want to|i'd like to|i would like to|we need to|i need to|need to)\b/, ' ').replace(/\s+/g, ' '); }
-  if (isQ || /^ (what|whats|what's|which|list|how much|how many|show|tell me|do we have|do i have|do we|have we|have i|is there|are there|any|anything|check|where)\b/.test(t)) return { action: 'list', loc: /\b(eat soon|eating soon|needs? eating|use up|oldest|old|expir|rotate)/.test(t) ? 'soon' : /\b(utilities|utility)\b/.test(t) ? 'utilities' : /\b(pantry|cupboard|press|larder)\b/.test(t) ? 'pantry' : (new RegExp(`\\b(${BEKO})\\b`).test(t) ? 'beko' : /\bfreezer\b/.test(t) ? 'freezer' : /\bfridge\b/.test(t) ? 'fridge' : null) };
+  if (isQ || /^ (what|whats|what's|which|list|how much|how many|show|tell me|do we have|do i have|do we|have we|have i|is there|are there|any|anything|check|where)\b/.test(t)) return { action: 'list', loc: /\b(eat soon|eating soon|needs? eating|use up|oldest|old|expir|rotate)/.test(t) ? 'soon' : /\b(utilities|utility)\b/.test(t) ? 'utilities' : /\b(prepper|preppers|prepping|stockpile|emergency)\b/.test(t) ? 'prepper' : /\b(pantry|cupboard|press|larder)\b/.test(t) ? 'pantry' : (new RegExp(`\\b(${BEKO})\\b`).test(t) ? 'beko' : /\bfreezer\b/.test(t) ? 'freezer' : /\bfridge\b/.test(t) ? 'fridge' : null) };
   if (/\b(utilities|utility|under the sink)\b/.test(t)) {
     loc = 'utilities';
     t = t.replace(/\b((in|into|to|from|out of|on|at) )?((the|my|our) )?(utilities|utility|under the sink)( (room|press|cupboard|cupboards))?\b/g, ' ');
+  } else if (/\b(prepper|preppers|prepping|prepper's|stockpile|emergency (supplies|store|box|kit|stash))\b/.test(t)) {
+    loc = 'prepper';
+    t = t.replace(/\b((in|into|to|from|out of|on|at) )?((the|my|our) )?(prepper|preppers|prepping|prepper's|stockpile|emergency (supplies|store|box|kit|stash))( (box|store|stash|supplies|cupboard|shelf))?\b/g, ' ');
   } else if (/\b(pantry|cupboard|cupboards|press|larder)\b/.test(t)) {
     loc = 'pantry';
     t = t.replace(/\b((in|into|to|from|out of|on|at) )?((the|my|our) )?(food )?(pantry|cupboard|cupboards|press|larder)\b/g, ' ');
@@ -474,7 +480,7 @@ function itemRow(it) {
   if (it.spot) bits.push(it.spot);
   if (f) bits.push(`<span class="flag">${f.text}</span>`);
   if (it.location === 'fridge' && it.use_by) bits.push('use by ' + fmtDay(it.use_by));
-  else if (it.location === 'pantry' && it.use_by) bits.push('best before ' + fmtDay(it.use_by));
+  else if ((it.location === 'pantry' || it.location === 'prepper') && it.use_by) bits.push('best before ' + fmtDay(it.use_by));
   else if (!isFoodLoc(it.location) || it.location === 'pantry') bits.push('added ' + fmtDay(it.bought_on));
   else bits.push((it.frozen_on ? '❄️ frozen ' : isFrozenLoc(it.location) ? 'in ' : 'bought ') + fmtAge(age) + (age > 0 ? ' ago' : ''));
   const img = it.image ? `<img src="${esc(it.image)}" alt="" loading="lazy" onerror="this.replaceWith(document.createTextNode('${emojiFor(it.name)}'))">` : emojiFor(it.name);
@@ -836,7 +842,7 @@ function itemForm(d, { title, existing } = {}) {
     <div class="row" style="margin-top:4px">
       <div class="grow"><label class="field">Bought</label><input type="date" id="f-bought" value="${d.bought_on || today()}" max="${today()}"></div>
       ${isFrozenLoc(loc) && d.frozen_on ? `<div class="grow"><label class="field">Frozen on</label><input type="date" id="f-frozen" value="${d.frozen_on}" max="${today()}"></div>` : ''}
-      ${loc === 'fridge' || loc === 'pantry' ? `<div class="grow"><label class="field">${loc === 'pantry' ? 'Best before' : 'Use by'} <span class="muted">(optional)</span></label><input type="date" id="f-useby" value="${d.use_by || ''}"></div>` : ''}
+      ${loc === 'fridge' || loc === 'pantry' || loc === 'prepper' ? `<div class="grow"><label class="field">${loc !== 'fridge' ? 'Best before' : 'Use by'} <span class="muted">(optional)</span></label><input type="date" id="f-useby" value="${d.use_by || ''}"></div>` : ''}
     </div>`;
 }
 function readForm(d) {
