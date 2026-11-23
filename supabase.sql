@@ -112,7 +112,7 @@ declare
   t0 text;
   generic boolean := false;
   numwords jsonb := '{"a":1,"an":1,"one":1,"won":1,"two":2,"to":2,"too":2,"three":3,"four":4,"for":4,"five":5,"six":6,"seven":7,"eight":8,"nine":9,"ten":10,"eleven":11,"twelve":12,"thirteen":13,"fourteen":14,"fifteen":15,"sixteen":16,"seventeen":17,"eighteen":18,"nineteen":19,"twenty":20,"thirty":30,"forty":40,"fifty":50,"half":0.5,"couple":2,"dozen":12,"all":-1,"every":-1}';
-  units jsonb := '{"portion":"portion","portions":"portion","bag":"bag","bags":"bag","pack":"pack","packs":"pack","packet":"pack","packets":"pack","tub":"tub","tubs":"tub","box":"box","boxes":"box","tin":"tin","tins":"tin","can":"tin","cans":"tin","bottle":"bottle","bottles":"bottle","tray":"tray","trays":"tray","piece":"piece","pieces":"piece","slice":"slice","slices":"slice","loaf":"loaf","loaves":"loaf","lb":"lb","lbs":"lb","pound":"lb","pounds":"lb","kg":"kg","kilo":"kg","kilos":"kg","g":"g","grams":"g","gram":"g","litre":"litre","litres":"litre","liter":"litre","liters":"litre","container":"container","containers":"container","carton":"carton","cartons":"carton","jar":"jar","jars":"jar","punnet":"punnet","punnets":"punnet","bunch":"bunch","bunches":"bunch","bowl":"bowl","bowls":"bowl","meal":"portion","meals":"portion","serving":"portion","servings":"portion","roll":"roll","rolls":"roll","can":"tin","tray-bake":"tray"}';
+  units jsonb := '{"portion":"portion","portions":"portion","bag":"bag","bags":"bag","pack":"pack","packs":"pack","packet":"pack","packets":"pack","tub":"tub","tubs":"tub","box":"box","boxes":"box","tin":"tin","tins":"tin","can":"tin","cans":"tin","bottle":"bottle","bottles":"bottle","tray":"tray","trays":"tray","piece":"piece","pieces":"piece","slice":"slice","slices":"slice","loaf":"loaf","loaves":"loaf","lb":"lb","lbs":"lb","pound":"lb","pounds":"lb","kg":"kg","kilo":"kg","kilos":"kg","g":"g","grams":"g","gram":"g","litre":"litre","litres":"litre","liter":"litre","liters":"litre","container":"container","containers":"container","carton":"carton","cartons":"carton","jar":"jar","jars":"jar","punnet":"punnet","punnets":"punnet","bunch":"bunch","bunches":"bunch","bowl":"bowl","bowls":"bowl","meal":"portion","meals":"portion","serving":"portion","servings":"portion","roll":"roll","rolls":"roll","tray-bake":"tray","block":"block","blocks":"block","pot":"pot","pots":"pot","bar":"bar","bars":"bar","sachet":"sachet","sachets":"sachet"}';
 begin
   isq := cmd ~ '\?';
   t := regexp_replace(t, '[’`]', '''', 'g');
@@ -132,8 +132,14 @@ begin
   end loop;
 
   -- questions
-  if isq or t ~ '^ (what|whats|what''s|which|list|how much|how many|show|tell me|do we have|do i have|do we|have we|have i|is there|are there|is any|are any|any|anything|check|where)\M' then
+  if isq or t ~ '^ (what|whats|what''s|which|list|how much|how many|show|tell me|do we have|do i have|do we|have we|have i|is there|are there|is any|are any|any|anything|check|where|did|does|do|was|were|are we|are you|is it|is that|is the|when|should|can i|can we|could i|could we|are there any)\M' then
     act := 'list';
+    -- "how many chilli did we eat", "did we eat the lasagne": answer from what was eaten, never change stock
+    if t ~ '\m(did|have|has) (we|i|you|anyone|she|he)( (just|already))? (eat|ate|eaten|use|used|take|took|taken|finish|finished|defrost|defrosted)\M' then
+      nm := regexp_replace(t, '\m(what|whats|what''s|which|how|many|much|did|have|has|we|i|you|anyone|she|he|just|already|eat|ate|eaten|use|used|take|took|taken|out|finish|finished|defrost|defrosted|the|any|of|our|my|this|last|week|month|today|yesterday|portions|portion|bags|bag|tins|tin|packs|pack|in|from)\M', ' ', 'g');
+      nm := trim(regexp_replace(nm, '\s+', ' ', 'g'));
+      return jsonb_build_object('action', 'eaten', 'name', nm);
+    end if;
     if t ~ '\m(eat soon|eating soon|need(s)? eating|use up|oldest|old|expir|rotate)' then loc := 'soon'; end if;
   end if;
 
@@ -171,7 +177,7 @@ begin
   if act = 'list' then
     if loc = 'soon' then return jsonb_build_object('action', 'list', 'loc', loc); end if;
     -- a question about one food ("how many chilli do we have", "do we have any peas")
-    nm := regexp_replace(t, '\m(what''s|whats|what|which|is|are|was|in|there|any|anything|do|does|we|i|you|have|has|got|left|how|many|much|of|the|our|my|show|me|list|tell|check|stock|food|foods|items|item|things|stuff|currently|still|some|at|moment|now|where|it|they|kept|portions|portion|bags|bag|tins|tin|packs|pack|bottles|bottle|units|cans|can|jars|jar|boxes|box|packets|packet|loaves|loaf|cartons|carton|tubs|tub|trays|tray|rolls|roll|pieces|piece|or|and|left)\M', ' ', 'g');
+    nm := regexp_replace(t, '\m(what''s|whats|what|which|is|are|was|in|there|any|anything|do|does|we|i|you|have|has|got|left|how|many|much|of|the|our|my|show|me|list|tell|check|stock|food|foods|items|item|things|stuff|currently|still|some|at|moment|now|where|it|they|kept|portions|portion|bags|bag|tins|tin|packs|pack|bottles|bottle|units|cans|can|jars|jar|boxes|box|packets|packet|loaves|loaf|cartons|carton|tubs|tub|trays|tray|rolls|roll|pieces|piece|or|and|left|did|does|was|were|should|can|could|out|run|running|low|on|need|enough)\M', ' ', 'g');
     nm := trim(regexp_replace(nm, '\s+', ' ', 'g'));
     if nm <> '' then return jsonb_build_object('action', 'count', 'name', nm, 'loc', loc); end if;
     return jsonb_build_object('action', 'list', 'loc', loc);
@@ -181,9 +187,12 @@ begin
   has_add := t ~ '^ ((we|i) )?((just|have|ve|''ve) )*(add|added|adding|put|putting|plus|bought|buy|got|log|store|stored|new|stick|stuck|pop|popped|place|placed)\M';
 
   -- freezing it today?
-  if t ~ '\m(freeze|freezing|frozen|froze)\M' then
+  -- "frozen peas" = bought frozen (just a description); "freeze", "froze", "frozen today" = home frozen
+  if t ~ '\m(freeze|freezing|froze)\M' or t ~ '\mfrozen (it|them|today|now)\M' or t ~ '\m(i|we)( have| ve|''ve| just)* frozen\M' or t ~ '^ ((we|i) )?((just|have|''ve) )*frozen\M' then
     frz := true;
     t := regexp_replace(t, '\m(i''m |i am |we''re |we are |to )?(freeze|freezing|frozen|froze)( it| them| today| now)*\M', ' ', 'g');
+  else
+    t := regexp_replace(t, '\mfrozen\M', ' ', 'g');
   end if;
 
   -- remove words
@@ -199,7 +208,7 @@ begin
   words := regexp_split_to_array(trim(t), ' ');
   n := coalesce(array_length(words, 1), 0);
   -- skip fillers
-  while i <= n and words[i] in ('we','i','have','had','just','the','some','of','my','our','x') loop i := i + 1; end loop;
+  while i <= n and words[i] in ('we','i','have','had','just','the','some','of','my','our','x','i''ve','we''ve','ive','weve') loop i := i + 1; end loop;
   -- quantity
   if i <= n then
     w := words[i];
@@ -258,17 +267,18 @@ create or replace function public.tb_guess_loc(nm text, u text) returns text lan
     when nm ~* '(\mmatch(es)?\M|lighters?\M|firelighters?|candles?|tea ?lights?|torch|power ?bank|first aid|plasters|gas canisters?|camping (gas|stove)|firewood|\mlogs\M|briquettes|\mcoal\M|duct tape|foil blankets?|water (tablets|filter|purif)|emergency|\mradio\M|paraffin|\mrope\M|batter(y|ies))' then 'prepper'
     when nm ~* '(bleach|detergent|washing (up|powder|liquid|tablets|pods)|cleaner|cleaning|spray|toilet|loo roll|kitchen roll|bin bag|bin liner|sponge|polish|soap|dishwasher|fabric|softener|wipes|tin foil|cling film|baking paper|hand wash|shampoo|toothpaste|batter(y|ies)|light ?bulb|fairy|domestos|flash|zoflora|dettol|febreze)' then 'utilities'
     when lower(nm) = any(public.tb_pantry_foods()) then 'pantry'
-    when u in ('tin','jar','roll') or nm ~* '(beans|pasta|spaghetti|penne|rice|cereal|porridge|oats|flour|sugar|tea bags|teabags|coffee|oil|vinegar|tinned|tin of|crisps|biscuit|noodle|stock cube|gravy|herbs|spice|salt|pepper|ketchup|mayo|jam|honey|peanut butter|nuts|crackers|lentils|chickpeas)' then 'pantry'
+    when u in ('tin','jar','roll','sachet') or nm ~* '(beans|pasta|spaghetti|penne|rice|cereal|porridge|oats|flour|sugar|tea bags|teabags|coffee|oil|vinegar|tinned|tin of|crisps|biscuit|noodle|stock cube|gravy|herbs|spice|salt|pepper|ketchup|mayo|jam|honey|peanut butter|nuts|crackers|lentils|chickpeas)' then 'pantry'
+    when nm !~* '(ice ?cream|frozen|cheesecake)' and nm ~* '(\mmilk\M|\mbutter\M|\mcheese\M|cheddar|mozzarella|\meggs?\M|yog|\mcream\M|creme fraiche|coleslaw|hummus|houmous|\msalad\M|lettuce|cucumber|\mham\M|sliced|\mjuice\M|smoothie|margarine|spread|dip\M)' then 'fridge'
     else 'beko' end
 $$;
 
 create or replace function public.tb_qty_text(q numeric, u text, nm text) returns text language sql immutable as $$
-  select trim_scale(q)::text || ' ' ||
+  select case when q = 0.5 and u is not null then 'half a ' || u || ' of ' || lower(nm) else trim_scale(q)::text || ' ' ||
     case when u is null then lower(nm)
          else (case when q = 1 or u in ('lb','kg','g') then u
                      when u in ('box','bunch') then u || 'es'
                      when u = 'loaf' then 'loaves'
-                     else u || 's' end) || ' of ' || lower(nm) end
+                     else u || 's' end) || ' of ' || lower(nm) end end
 $$;
 
 create or replace function public.tb_ping(code text) returns void language plpgsql security definer as $$
@@ -360,12 +370,26 @@ begin
               order by coalesce(frozen_on, bought_on) limit 8) s;
       return coalesce('Eat these soon: ' || lst || '.', 'Nothing needs eating soon. Everything is within its rotation.');
     end if;
-    select string_agg(public.tb_qty_text(qty, unit, name) || case when loc in ('freezers','cold') then ' in the ' || public.tb_loc_name(location) else '' end, ', ' order by coalesce(frozen_on, bought_on))
+    select string_agg(public.tb_qty_text(qty, unit, name) || case when loc in ('freezers','cold') then ' in the ' || public.tb_loc_name(location) else '' end, ', ' order by coalesce(frozen_on, bought_on), added_at)
       into lst
       from (select * from items where household = hh and gone_at is null and qty > 0 and public.tb_loc_ok(loc, location)
-            order by coalesce(frozen_on, bought_on) limit 12) s;
+            order by coalesce(frozen_on, bought_on), added_at limit 12) s;
     return coalesce('In the ' || coalesce(public.tb_loc_name(loc), 'kitchen') || ', oldest first: ' || lst || '.',
                     'The ' || coalesce(public.tb_loc_name(loc), 'kitchen') || case when loc in ('freezers','cold') then ' are' else ' is' end || ' empty.');
+  end if;
+
+  if p->>'action' = 'eaten' then
+    nm := p->>'name';
+    if coalesce(nm, '') = '' then
+      select string_agg(trim_scale(s.q)::text || ' ' || lower(s.nm), ', ') into lst
+        from (select max(name) nm, sum(qty) q from usage where household = hh and used_at >= now() - interval '7 days'
+              group by lower(name) order by sum(qty) desc limit 8) s;
+      return coalesce('In the last 7 days you used ' || lst || '.', 'Nothing has been logged as eaten in the last 7 days.');
+    end if;
+    select sum(qty) into total from (select qty from usage where household = hh and used_at >= now() - interval '30 days'
+       and (name ilike '%' || nm || '%' or lower(name) || 's' = nm or lower(name) = nm || 's' or extensions.similarity(lower(name), nm) > 0.5)) x;
+    return case when total is null then 'You haven''t logged any ' || nm || ' as eaten in the last 30 days.'
+                else 'In the last 30 days you ate ' || trim_scale(total)::text || ' ' || nm || '.' end;
   end if;
 
   if p->>'action' = 'unsure' then
@@ -426,12 +450,18 @@ begin
   -- remove: find the best matching food, then take from the oldest batch first
   select lower(i.name) into target from items i
     where i.household = hh and i.gone_at is null and i.qty > 0 and public.tb_loc_ok(loc, i.location)
-      and (i.name ilike '%' || nm || '%' or nm ilike '%' || i.name || '%' or extensions.similarity(lower(i.name), nm) > 0.3
-           or extensions.word_similarity(nm, lower(i.name)) > 0.5)
+      and (i.name ilike '%' || nm || '%' or nm ilike '%' || i.name || '%' or lower(i.name) || 's' = nm or lower(i.name) = nm || 's'
+           or extensions.similarity(lower(i.name), nm) > 0.5)
     order by (lower(i.name) = nm) desc, extensions.similarity(lower(i.name), nm) desc, coalesce(i.frozen_on, i.bought_on)
     limit 1;
   if target is null then
-    return 'I couldn''t find ' || nm || case when loc is null then '' else ' in the ' || public.tb_loc_name(loc) end || '.';
+    -- never take out a different food: just suggest the closest one
+    select lower(i.name) into lst from items i
+      where i.household = hh and i.gone_at is null and i.qty > 0 and public.tb_loc_ok(loc, i.location)
+        and (extensions.similarity(lower(i.name), nm) > 0.25 or extensions.word_similarity(nm, lower(i.name)) > 0.4)
+      order by extensions.similarity(lower(i.name), nm) desc limit 1;
+    return 'I couldn''t find ' || nm || case when loc is null then '' else ' in the ' || public.tb_loc_name(loc) end || ', so I didn''t change anything.'
+      || coalesce(' Did you mean ' || lst || '? Say it again with that name.', '');
   end if;
 
   remaining := q;

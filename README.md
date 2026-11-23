@@ -31,7 +31,11 @@ Say "Hey Siri, Freezer", then for example:
 
 - "Add 3 tins of beans to the pantry" / "Add 2 bottles of bleach" (goes to Utilities)
 
-No place said: cleaning and household things go to Utilities, tins and dry goods to the Pantry, everything else to the Beko. Removing always takes the oldest batch first.
+No place said: cleaning and household things go to Utilities, emergency supplies to Prepper, tins and dry goods to the Pantry, milk, eggs, cheese, butter and yoghurt to the fridge, everything else to the Beko. Removing always takes the oldest batch first, and Siri never takes out a different food than the one you said.
+
+"Frozen peas" just means peas bought frozen. Say "freeze", "froze" or "I've frozen" when you froze it yourself today.
+
+Questions never change anything: "Did we eat the chilli?", "How many sausages did we eat?", "What did we eat?" answer from what's been logged.
 
 ## How it works
 - **Stock**: everything, oldest first; tap − when you eat one; tap an item to edit, move shelf/drawer, or mark frozen.
