@@ -102,6 +102,7 @@ declare
   isq boolean := false;
   has_add boolean := false;
   t0 text;
+  generic boolean := false;
   numwords jsonb := '{"a":1,"an":1,"one":1,"won":1,"two":2,"to":2,"too":2,"three":3,"four":4,"for":4,"five":5,"six":6,"seven":7,"eight":8,"nine":9,"ten":10,"eleven":11,"twelve":12,"thirteen":13,"fourteen":14,"fifteen":15,"sixteen":16,"seventeen":17,"eighteen":18,"nineteen":19,"twenty":20,"thirty":30,"forty":40,"fifty":50,"half":0.5,"couple":2,"dozen":12,"all":-1,"every":-1}';
   units jsonb := '{"portion":"portion","portions":"portion","bag":"bag","bags":"bag","pack":"pack","packs":"pack","packet":"pack","packets":"pack","tub":"tub","tubs":"tub","box":"box","boxes":"box","tin":"tin","tins":"tin","can":"tin","cans":"tin","bottle":"bottle","bottles":"bottle","tray":"tray","trays":"tray","piece":"piece","pieces":"piece","slice":"slice","slices":"slice","loaf":"loaf","loaves":"loaf","lb":"lb","lbs":"lb","pound":"lb","pounds":"lb","kg":"kg","kilo":"kg","kilos":"kg","g":"g","grams":"g","gram":"g","litre":"litre","litres":"litre","liter":"litre","liters":"litre","container":"container","containers":"container","carton":"carton","cartons":"carton","jar":"jar","jars":"jar","punnet":"punnet","punnets":"punnet","bunch":"bunch","bunches":"bunch","bowl":"bowl","bowls":"bowl","meal":"portion","meals":"portion","serving":"portion","servings":"portion","roll":"roll","rolls":"roll","can":"tin","tray-bake":"tray"}';
 begin
@@ -128,6 +129,8 @@ begin
     if t ~ '\m(eat soon|eating soon|need(s)? eating|use up|oldest|old|expir|rotate)' then loc := 'soon'; end if;
   end if;
 
+  -- "big freezer" / "chest freezer" mean the Beko
+  t := regexp_replace(t, '\m(big|chest) freezer\M', ' beko ', 'g');
   -- location (utilities and pantry first, then chest freezer, American freezer, fridge)
   if t ~ '\m(utilities|utility|under the sink)\M' then
     loc := coalesce(loc, 'utilities');
@@ -135,17 +138,20 @@ begin
   elsif t ~ '\m(pantry|cupboard|cupboards|press|larder)\M' then
     loc := coalesce(loc, 'pantry');
     t := regexp_replace(t, '\m((in|into|to|from|out of|on|at) )?((the|my|our) )?(food )?(pantry|cupboard|cupboards|press|larder)\M', ' ', 'g');
-  elsif t ~ '\m(beko|becko|beco|becco|bekko|beeko|beko''s|bekos|becko''s|bico|deco|chest)\M' then
+  elsif t ~ '\m(beko|becko|beco|becco|bekko|beeko|beko''s|bekos|becko''s|bico|deco|chest|beaker|beakers|beaker''s|becker|beckers|becker''s|bekah|becca|beca|bekka|bacco|baker''s freezer|bécot|bekoe|bebo|vecko|veko)\M' then
     loc := coalesce(loc, 'beko');
-    t := regexp_replace(t, '\m((in|into|to|from|out of|on|at) )?((the|my|our) )?(beko|becko|beco|becco|bekko|beeko|beko''s|bekos|becko''s|bico|deco|chest)( (chest|freezer|chest freezer))*\M', ' ', 'g');
-  elsif t ~ '\m(fridge freezer|freezer|american freezer|big freezer|freezer drawer|freezer drawers)\M' then
+    t := regexp_replace(t, '\m((in|into|to|from|out of|on|at) )?((the|my|our) )?(beko|becko|beco|becco|bekko|beeko|beko''s|bekos|becko''s|bico|deco|chest|beaker|beakers|beaker''s|becker|beckers|becker''s|bekah|becca|beca|bekka|bacco|baker''s freezer|bécot|bekoe|bebo|vecko|veko)( (chest|freezer|chest freezer))*\M', ' ', 'g');
+  elsif t ~ '\m(fridge freezer|freezer|freezers|american freezer|freezer drawer|freezer drawers)\M' then
+    -- plain "freezer(s)" means both freezers when asking or taking out; "American"/"fridge freezer"/"drawer" means the American one
+    generic := t !~ '\m(american|fridge freezer|freezer drawers?|freezer side)\M';
     loc := coalesce(loc, 'freezer');
-    t := regexp_replace(t, '\m((in|into|to|from|out of|on|at) )?((the|my|our) )?((american|big) )?(fridge )?freezer( (drawer|drawers|side))?\M', ' ', 'g');
+    t := regexp_replace(t, '\m((in|into|to|from|out of|on|at) )?((the|my|our) )?(american )?(fridge )?freezers?( (drawer|drawers|side))?\M', ' ', 'g');
   elsif t ~ '\m(fridge|refrigerator)\M' then
     loc := coalesce(loc, 'fridge');
     t := regexp_replace(t, '\m((in|into|to|from|out of|on|at) )?((the|my|our) )?(american )?(fridge|refrigerator)( side)?\M', ' ', 'g');
   end if;
 
+  if act = 'list' and generic and loc = 'freezer' then loc := 'freezers'; end if;
   if act = 'list' then
     if loc = 'soon' then return jsonb_build_object('action', 'list', 'loc', loc); end if;
     -- a question about one food ("how many chilli do we have", "do we have any peas")
@@ -167,6 +173,7 @@ begin
   -- remove words
   if t ~ '\m(ate|eat|eaten|remove|removed|delete|deleted|used|use up|took|take|taken|finished|finish|minus|defrost|defrosted|defrosting|thaw|thawed|thawing|gone)\M' then
     act := 'remove';
+    if generic and loc = 'freezer' then loc := 'freezers'; end if;
     t := regexp_replace(t, '\m(we |i )?(have |had |just )*(ate|eaten|eat|removed|remove|delete|deleted|used up|use up|used|took out|take out|taken out|took|take|taken|finished|finish|minus|defrosted|defrosting|defrost|thawed|thawing|thaw|gone)( up| out| off)?\M', ' ', 'g');
   end if;
   t := regexp_replace(t, '^ ((we|i) )?((just|have|ve|''ve) )*(please )?(add|added|adding|put|putting|plus|bought|buy|got|log|store|stored|new|stick|stuck|pop|popped|place|placed)( in| away)?\M', ' ', 'g');
@@ -210,8 +217,12 @@ begin
   return jsonb_build_object('action', act, 'qty', coalesce(qty, 1), 'unit', unit, 'name', nm, 'loc', loc, 'freeze', frz);
 end $$;
 
+create or replace function public.tb_loc_ok(want text, have text) returns boolean language sql immutable as $$
+  select want is null or have = want or (want = 'freezers' and have in ('freezer','beko'))
+$$;
+
 create or replace function public.tb_loc_name(loc text) returns text language sql immutable as $$
-  select case loc when 'beko' then 'Beko' when 'freezer' then 'American freezer' when 'fridge' then 'fridge'
+  select case loc when 'freezers' then 'freezers' when 'beko' then 'Beko' when 'freezer' then 'American freezer' when 'fridge' then 'fridge'
                   when 'pantry' then 'pantry' when 'utilities' then 'utility cupboard' else loc end
 $$;
 
@@ -274,12 +285,12 @@ begin
               order by coalesce(frozen_on, bought_on) limit 8) s;
       return coalesce('Eat these soon: ' || lst || '.', 'Nothing needs eating soon. Everything is within its rotation.');
     end if;
-    select string_agg(public.tb_qty_text(qty, unit, name), ', ' order by coalesce(frozen_on, bought_on))
+    select string_agg(public.tb_qty_text(qty, unit, name) || case when loc = 'freezers' then ' in the ' || public.tb_loc_name(location) else '' end, ', ' order by coalesce(frozen_on, bought_on))
       into lst
-      from (select * from items where household = hh and gone_at is null and qty > 0 and (loc is null or location = loc)
+      from (select * from items where household = hh and gone_at is null and qty > 0 and public.tb_loc_ok(loc, location)
             order by coalesce(frozen_on, bought_on) limit 12) s;
     return coalesce('In the ' || coalesce(public.tb_loc_name(loc), 'kitchen') || ', oldest first: ' || lst || '.',
-                    'The ' || coalesce(public.tb_loc_name(loc), 'kitchen') || ' is empty.');
+                    'The ' || coalesce(public.tb_loc_name(loc), 'kitchen') || case when loc = 'freezers' then ' are' else ' is' end || ' empty.');
   end if;
 
   if p->>'action' = 'unsure' then
@@ -291,7 +302,7 @@ begin
     select string_agg(public.tb_qty_text(s.q, s.unit, s.nm) || ' in the ' || public.tb_loc_name(s.location), ', ')
       into lst
       from (select i.location, max(i.name) nm, i.unit, sum(i.qty) q from items i
-              where i.household = hh and i.gone_at is null and i.qty > 0 and (loc is null or i.location = loc)
+              where i.household = hh and i.gone_at is null and i.qty > 0 and public.tb_loc_ok(loc, i.location)
                 and (i.name ilike '%' || nm || '%' or nm ilike '%' || i.name || '%' or extensions.word_similarity(nm, lower(i.name)) > 0.5)
               group by i.location, lower(i.name), i.unit order by i.location limit 6) s;
     return coalesce('You have ' || lst || '.',
@@ -329,7 +340,7 @@ begin
 
   -- remove: find the best matching food, then take from the oldest batch first
   select lower(i.name) into target from items i
-    where i.household = hh and i.gone_at is null and i.qty > 0 and (loc is null or i.location = loc)
+    where i.household = hh and i.gone_at is null and i.qty > 0 and public.tb_loc_ok(loc, i.location)
       and (i.name ilike '%' || nm || '%' or nm ilike '%' || i.name || '%' or extensions.similarity(lower(i.name), nm) > 0.3
            or extensions.word_similarity(nm, lower(i.name)) > 0.5)
     order by (lower(i.name) = nm) desc, extensions.similarity(lower(i.name), nm) desc, coalesce(i.frozen_on, i.bought_on)
@@ -340,7 +351,7 @@ begin
 
   remaining := q;
   for r in select * from items i
-      where i.household = hh and i.gone_at is null and i.qty > 0 and lower(i.name) = target and (loc is null or i.location = loc)
+      where i.household = hh and i.gone_at is null and i.qty > 0 and lower(i.name) = target and public.tb_loc_ok(loc, i.location)
       order by coalesce(i.frozen_on, i.bought_on), i.added_at
   loop
     exit when remaining = 0;
@@ -352,7 +363,7 @@ begin
     end if;
     insert into usage (household, name, location, qty) values (hh, r.name, r.location, took);
     if remaining > 0 then remaining := remaining - took; end if;
-    loc := coalesce(loc, r.location);
+    loc := case when loc is null or loc = 'freezers' then r.location else loc end;
     u := coalesce(u, r.unit);
     nm := r.name;
   end loop;

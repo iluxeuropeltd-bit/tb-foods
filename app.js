@@ -2,7 +2,7 @@
 'use strict';
 
 const CFG = window.TB_CONFIG || {};
-const VERSION = '1.0.4';
+const VERSION = '1.0.5';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -112,12 +112,13 @@ function flagOf(it) {
 /* ---------------- voice / typed command parsing (mirrors tb_parse in SQL) ---------------- */
 const NUMWORDS = { a: 1, an: 1, one: 1, won: 1, two: 2, to: 2, too: 2, three: 3, four: 4, for: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50, half: 0.5, couple: 2, dozen: 12, all: -1, every: -1 };
 const UNITS = { portion: 'portion', portions: 'portion', bag: 'bag', bags: 'bag', pack: 'pack', packs: 'pack', packet: 'pack', packets: 'pack', tub: 'tub', tubs: 'tub', box: 'box', boxes: 'box', tin: 'tin', tins: 'tin', can: 'tin', cans: 'tin', bottle: 'bottle', bottles: 'bottle', tray: 'tray', trays: 'tray', piece: 'piece', pieces: 'piece', slice: 'slice', slices: 'slice', loaf: 'loaf', loaves: 'loaf', lb: 'lb', lbs: 'lb', pound: 'lb', pounds: 'lb', kg: 'kg', kilo: 'kg', kilos: 'kg', g: 'g', grams: 'g', gram: 'g', litre: 'litre', litres: 'litre', liter: 'litre', liters: 'litre', container: 'container', containers: 'container', carton: 'carton', cartons: 'carton', jar: 'jar', jars: 'jar', punnet: 'punnet', punnets: 'punnet', bunch: 'bunch', bunches: 'bunch', bowl: 'bowl', bowls: 'bowl', meal: 'portion', meals: 'portion', serving: 'portion', servings: 'portion', roll: 'roll', rolls: 'roll' };
-const BEKO = 'beko|becko|beco|becco|bekko|beeko|beko\'s|bekos|becko\'s|bico|deco|chest';
+const BEKO = 'beko|becko|beco|becco|bekko|beeko|beko\'s|bekos|becko\'s|bico|deco|chest|beaker|beakers|becker|beckers|bekah|becca|beca|bekka|bacco|bekoe|bebo|vecko|veko';
 function parseCommand(cmd) {
   let t = ' ' + String(cmd || '').toLowerCase() + ' ';
   let action = 'add', loc = null, freeze = false, qty = null, unit = null;
   t = t.replace(/[’`]/g, "'").replace(/\.(?![0-9])/g, ' ').replace(/[^a-z0-9.' -]/g, ' ').replace(/\s+/g, ' ');
   const isQ = /\?/.test(String(cmd || ''));
+  t = t.replace(/\b(big|chest) freezer\b/g, ' beko ');
   t = t.replace(/\b(hey|hi|ok|okay|o k) (siri|seri|sirie|siri's|cyril)\b/g, ' ').replace(/\b(siri|seri|sirie)\b/g, ' ').replace(/\s+/g, ' ');
   for (let t0 = ''; t0 !== t;) { t0 = t; t = t.replace(/^ (hey|hi|ok|okay|um|umm|uh|er|erm|so|right|and|please|can you|could you|would you|will you|go ahead and|i want to|i'd like to|i would like to|we need to|i need to|need to)\b/, ' ').replace(/\s+/g, ' '); }
   if (isQ || /^ (what|whats|what's|which|list|how much|how many|show|tell me|do we have|do i have|do we|have we|have i|is there|are there|any|anything|check|where)\b/.test(t)) return { action: 'list', loc: /\b(eat soon|eating soon|needs? eating|use up|oldest|old|expir|rotate)/.test(t) ? 'soon' : /\b(utilities|utility)\b/.test(t) ? 'utilities' : /\b(pantry|cupboard|press|larder)\b/.test(t) ? 'pantry' : (new RegExp(`\\b(${BEKO})\\b`).test(t) ? 'beko' : /\bfreezer\b/.test(t) ? 'freezer' : /\bfridge\b/.test(t) ? 'fridge' : null) };
